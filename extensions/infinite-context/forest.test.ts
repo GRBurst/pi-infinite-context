@@ -3,13 +3,11 @@ import { test } from "node:test";
 import fc from "fast-check";
 import {
   type Forest,
-  type Item,
   allItems,
   findItem,
   messageItem,
   originalIds,
   parseSnapshot,
-  replaceRootSummary,
   snapshot,
   syncOriginals,
   wrapRootRanges,
@@ -24,8 +22,28 @@ test("nested folds preserve ordered, uniquely owned original leaves", () => {
   assert.deepEqual(originalIds(outer), ids(5));
   assert.equal(findItem(outer, "f1")?.kind, "fold");
   assert.deepEqual((findItem(outer, "f1") as { summary: string }).summary, "inner");
-  assert.throws(() => replaceRootSummary(outer, "f1", "hidden edit"), /"f1" is not a root fold/);
-  assert.equal((replaceRootSummary(outer, "f2", "new") as Item[])[0].kind, "fold");
+});
+
+test("singleton refolding preserves the entire previous fold unchanged", () => {
+  const roots = wrapRootRanges(ids(3).map(messageItem), [
+    { first: 0, last: 1, id: "inner", summary: "inner history" },
+  ]);
+  const previous = wrapRootRanges(roots, [
+    { first: 0, last: 1, id: "previous", summary: "previous history" },
+  ]);
+  const before = structuredClone(previous);
+  const revised = wrapRootRanges(previous, [
+    { first: 0, last: 0, id: "revised", summary: "current state" },
+  ]);
+  assert.deepEqual(previous, before);
+  assert.equal(revised[0].id, "revised");
+  assert.equal(revised[0].kind, "fold");
+  if (revised[0].kind !== "fold") throw new Error("Expected a fold");
+  assert.equal(revised[0].summary, "current state");
+  assert.deepEqual(revised[0].children, before);
+  assert.equal(revised[0].children[0], previous[0]);
+  assert.equal(findItem(revised, "inner"), findItem(previous, "inner"));
+  assert.deepEqual(originalIds(revised), ids(3));
 });
 
 test("invalid batches are atomic", () => {

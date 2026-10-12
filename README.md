@@ -5,7 +5,7 @@ Keep working in one [Pi](https://pi.dev/) session for longer. The agent replaces
 ## How it works
 
 1. **Fold:** The agent groups a stretch of its context into a **fold** and writes a summary. The model sees that summary, labeled with the fold's ID, instead of the messages inside.
-2. **Fold again:** A new fold can contain earlier folds and more messages. Their summaries and original messages stay intact.
+2. **Fold again:** A new fold can contain earlier folds and more messages. To revise a summary, the agent folds just that fold with a new summary. Earlier summaries and original messages stay intact.
 3. **Find:** The agent can search the archive and read what it needs. Reading does not unfold anything or change the fold tree.
 
 ![The model sees user and agent messages, a fold summary, and a tool call with its result. The summary links to a saved range containing an earlier summary and more user, agent, and tool messages in their original order. The earlier summary also keeps its messages.](docs/folding.svg)
@@ -14,12 +14,11 @@ The archive belongs to the current session branch. Folding changes what is sent 
 
 ## Tools
 
-The agent uses these five tools:
+The agent uses these four tools:
 
 | Tool | What it does |
 | --- | --- |
 | `context_fold` | Groups a stretch of visible context into a fold with a new summary. |
-| `context_summary` | Rewrites the summary of a visible fold, without changing its contents. |
 | `context_map` | Lists the whole visible context, or the direct contents of one fold, as one compact line per item. |
 | `context_search` | Searches original messages and fold summaries using regular expressions. |
 | `context_peek` | Reads one original message or fold summary by ID, with an optional line range. |

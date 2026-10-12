@@ -15,11 +15,12 @@ interface Message {
 }
 
 const FOLD_SUMMARY = "ARCHIVED: greeting and the aborted attempt";
+const REVISED_SUMMARY = "REVISED: greeting and recovery are complete";
 
 const strippedEnv = () =>
   Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("PI_")));
 
-test("a scripted fold replaces the archived messages in the provider transcript", () => {
+test("folding and singleton refolding project only the active summary to the provider", () => {
   const transcript = join(mkdtempSync(join(tmpdir(), "infinite-context-e2e-")), "transcript.jsonl");
   execFileSync(
     "pi",
@@ -50,17 +51,21 @@ test("a scripted fold replaces the archived messages in the provider transcript"
     .filter(Boolean)
     .map((line) => JSON.parse(line));
 
-  assert.ok(requests.length >= 5, `expected the whole script to run, got ${requests.length} requests`);
+  assert.ok(requests.length >= 6, `expected the whole script to run, got ${requests.length} requests`);
   const live = (messages: Message[]) => messages.filter((message) => message.role !== "system");
 
   // Pi drops the aborted attempt itself: the retry request repeats the previous one.
   assert.deepEqual(live(requests[2].messages), live(requests[1].messages));
 
+  const folded = live(requests.at(-2)!.messages);
+  assert.match(folded[0].text, new RegExp(`^\\[#fold-[0-9a-f]{8}\\] archived fold summary:\n${FOLD_SUMMARY}$`));
   const last = live(requests.at(-1)!.messages);
+  assert.notEqual(last[0].text.match(/\[#([^\]]+)\]/)?.[1], folded[0].text.match(/\[#([^\]]+)\]/)?.[1]);
+  assert.ok(!last.some((message) => message.text.includes(FOLD_SUMMARY)));
   // The fold summary reached the provider as one message, in place of the archived turns.
-  assert.equal(last.filter((message) => message.text.includes(FOLD_SUMMARY)).length, 1);
+  assert.equal(last.filter((message) => message.text.includes(REVISED_SUMMARY)).length, 1);
   // It is marked as archive content and names its fold id.
-  assert.match(last[0].text, new RegExp(`^\\[#fold-[0-9a-f]{8}\\] archived fold summary:\n${FOLD_SUMMARY}$`));
+  assert.match(last[0].text, new RegExp(`^\\[#fold-[0-9a-f]{8}\\] archived fold summary:\n${REVISED_SUMMARY}$`));
   assert.ok(
     !last.some((message) => message.toolCallIds.includes("call_1_0") || message.toolCallId === "call_1_0"),
     "an archived tool exchange is still in the transcript",

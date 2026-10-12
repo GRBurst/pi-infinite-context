@@ -93,16 +93,6 @@ export function wrapRootRanges(
   return result;
 }
 
-/** Hidden summaries are immutable: only a currently visible fold may change. */
-export function replaceRootSummary(roots: Forest, id: string, summary: string): Forest {
-  const index = roots.findIndex((item) => item.id === id);
-  const item = roots[index];
-  if (!item || item.kind !== "fold") throw new Error(`"${id}" is not a root fold`);
-  return roots.map((candidate, i) =>
-    i === index ? { ...item, summary } : candidate,
-  );
-}
-
 /** Append new branch messages while proving every archived original still exists once and in order. */
 export function syncOriginals(roots: Forest, currentOriginalIds: readonly string[]): Forest {
   const archived = originalIds(roots);

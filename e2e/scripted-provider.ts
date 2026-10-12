@@ -3,11 +3,12 @@
 //
 // The script drives one realistic recovery pattern: parallel tool calls, an
 // aborted attempt that leaves a tool call without a result, then a context_fold
-// of everything before the current turn.
+// of everything before the current turn and a singleton refold to revise its summary.
 import { appendFileSync } from "node:fs";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 
 const FOLD_SUMMARY = "ARCHIVED: greeting and the aborted attempt";
+const REVISED_SUMMARY = "REVISED: greeting and recovery are complete";
 const transcriptPath = process.env.E2E_TRANSCRIPT ?? "/tmp/e2e-transcript.jsonl";
 const log = (value: unknown) => appendFileSync(transcriptPath, `${JSON.stringify(value)}\n`);
 
@@ -15,6 +16,7 @@ type Step =
   | { kind: "calls"; calls: { name: string; arguments: unknown }[] }
   | { kind: "abort"; call: { name: string; arguments: unknown } }
   | { kind: "fold" }
+  | { kind: "refold" }
   | { kind: "text"; text: string };
 
 const script: Step[] = [
@@ -23,6 +25,7 @@ const script: Step[] = [
   { kind: "abort", call: { name: "bash", arguments: { command: "echo never" } } },
   { kind: "calls", calls: [{ name: "context_map", arguments: {} }] },
   { kind: "fold" },
+  { kind: "refold" },
   { kind: "text", text: "DONE" },
 ];
 
@@ -105,6 +108,13 @@ export default function scriptedProvider(pi: any) {
           call("context_fold", {
             // Everything except the running turn, including the abandoned attempt.
             items: [{ from: ids[0], to: ids[Math.max(ids.length - 2, 0)], summary: FOLD_SUMMARY }],
+          });
+        }
+        if (current.kind === "refold") {
+          const result = context.messages.findLast((message: any) =>
+            message.role === "toolResult" && message.toolName === "context_fold");
+          call("context_fold", {
+            items: [{ from: result.details.ids[0], summary: REVISED_SUMMARY }],
           });
         }
         message.stopReason = message.content.some((block: any) => block.type === "toolCall")

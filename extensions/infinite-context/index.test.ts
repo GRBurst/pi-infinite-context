@@ -12,6 +12,7 @@ import type {
   SessionEntry,
 } from "@earendil-works/pi-coding-agent";
 import infiniteContext from "./index.ts";
+import type { Snapshot } from "./forest.ts";
 import {
   assistantMessage,
   bashMessage,
@@ -102,16 +103,16 @@ const entry = (
     : assistantMessage(content as Extract<AgentMessage, { role: "assistant" }>["content"], timestamp),
 );
 
-test("registers the approved five-tool surface in sequential mode", () => {
+test("registers the approved four-tool surface in sequential mode", () => {
   const h = harness([]);
   assert.deepEqual([...h.tools.keys()], [
     "context_map",
     "context_peek",
     "context_search",
     "context_fold",
-    "context_summary",
   ]);
   assert.ok([...h.tools.values()].every((tool) => tool.executionMode === "sequential"));
+  assert.equal(h.tools.has("context_summary"), false);
   assert.equal(h.tools.has("context_unfold"), false);
 });
 
@@ -153,6 +154,58 @@ test("fold persists v2, overlays one summary, and reloads its own snapshot", asy
   const map = await h.tools.get("context_map")!.execute("map", {}, undefined, undefined, h.ctx);
   assert.match(map.content[0].text, /fold-/);
   assert.match(map.content[0].text, /both/);
+});
+
+test("from-only refolding revises active context and keeps readable, searchable summary history", async () => {
+  const source = [entry("u1", "user", "one", 1), entry("u2", "user", "two", 2)];
+  const h = harness(source);
+  const call = (name: string, params: Record<string, unknown>) =>
+    h.tools.get(name)!.execute("call", params, undefined, undefined, h.ctx);
+  const fold = async (params: Record<string, unknown>) => {
+    const result = await call("context_fold", params);
+    return (result.details as { ids: string[] }).ids[0];
+  };
+  const saved = () => (h.entries().at(-1) as Extract<SessionEntry, { type: "custom" }>).data as Snapshot;
+
+  const innerId = await fold({ items: [{ from: "u1", summary: "inner history" }] });
+  const oldId = await fold({ items: [{ from: innerId, to: "u2", summary: "previous history" }] });
+  const previous = saved().roots[0];
+  const before = structuredClone(previous);
+  const newId = await fold({ items: [{ from: oldId, summary: "current state" }] });
+  assert.notEqual(newId, oldId);
+  assert.notEqual(newId, innerId);
+  const revised = saved().roots[0];
+  assert.equal(revised.id, newId);
+  assert.equal(revised.kind, "fold");
+  if (revised.kind !== "fold") throw new Error("Expected a fold");
+  assert.equal(revised.summary, "current state");
+  assert.deepEqual(revised.children, [before]);
+  assert.equal(revised.children[0], previous);
+
+  // Favor Immutability: reloading and reading history leave the active projection intact.
+  await h.emit("session_start", { reason: "reload" });
+  const entriesBeforeReads = structuredClone(h.entries());
+  const peek = await call("context_peek", { id: oldId });
+  assert.equal(peek.content[0].text, `previous history\n[#${oldId}] fold summary · lines 1-1 of 1`);
+  const innerPeek = await call("context_peek", { id: innerId });
+  assert.match(innerPeek.content[0].text, /^inner history\n/);
+  const search = await call("context_search", { patterns: ["previous history"] });
+  assert.equal((search.details as { matches: number }).matches, 1);
+  assert.ok(search.content[0].text.includes(`[#${oldId}] fold summary · child of [#${newId}]`));
+  assert.match(search.content[0].text, /1: previous history/);
+  const children = await call("context_map", { id: newId });
+  assert.ok(children.content[0].text.includes(`[#${oldId}]`));
+  assert.match(children.content[0].text, /previous history/);
+
+  const overlay = await h.emit("context", {
+    messages: source.map((sourceEntry) => sourceEntry.type === "message" && sourceEntry.message),
+  }) as { messages: AgentMessage[] };
+  assert.equal(overlay.messages.length, 1);
+  assert.equal(
+    overlay.messages[0].role === "user" && overlay.messages[0].content,
+    `[#${newId}] archived fold summary:\ncurrent state`,
+  );
+  assert.deepEqual(h.entries(), entriesBeforeReads);
 });
 
 test("new originals append after a fold; tree navigation reconstructs branch-local state", async () => {
@@ -210,10 +263,6 @@ test("maximal tool arguments pass Pi's own schema validation", () => {
   assert.deepEqual(validate("context_search", { patterns: ["needle"] }), {
     patterns: ["needle"],
   });
-  assert.deepEqual(validate("context_summary", { id: "fold", summary: "x".repeat(12_000) }), {
-    id: "fold",
-    summary: "x".repeat(12_000),
-  });
   const maximalFold = {
     items: [{
       from: "f".repeat(128),
@@ -224,7 +273,7 @@ test("maximal tool arguments pass Pi's own schema validation", () => {
   assert.deepEqual(validate("context_fold", maximalFold), maximalFold);
   // Invalid arguments are rejected by Pi with its own actionable schema error.
   assert.throws(
-    () => validate("context_summary", { id: "fold", summary: "x".repeat(12_001) }),
+    () => validate("context_fold", { items: [{ from: "fold", summary: "x".repeat(12_001) }] }),
     /must not have more than 12000 characters/,
   );
   assert.throws(() => validate("context_fold", { items: [{ summary: "no from id" }] }), /from/);
@@ -331,10 +380,6 @@ test("id errors name the id and the next step", async () => {
   await assert.rejects(call("context_peek", { id: "nope" }), /"nope" is not in the archive/);
   await assert.rejects(call("context_map", { id: "nope" }), /"nope" is not in the archive/);
   await assert.rejects(call("context_map", { id: "u1" }), /"u1" is a message, not a fold/);
-  await assert.rejects(
-    call("context_summary", { id: "u1", summary: "x" }),
-    /"u1" is not a root: it is inside fold "/,
-  );
   await assert.rejects(
     call("context_fold", { items: [{ from: "u1", summary: "x" }] }),
     /"u1" is not a root: it is inside fold "/,

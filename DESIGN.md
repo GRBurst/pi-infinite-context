@@ -36,7 +36,7 @@ The invariants are:
 
 1. Leaves contain every addressable original on the current branch exactly once and in branch order.
 2. Node IDs are globally unique. Fold IDs do not reuse Pi session-entry IDs.
-3. A fold has at least one child. Its summary is a projection of that node, not another child.
+3. A fold has at least one child. Its summary is a projection of that node, not another child. Existing folds, including their summaries, remain unchanged when wrapped in a new fold.
 4. A live assistant tool call and its live results either all remain unfolded roots, or are folded together into one subtree. Tool units have live members only, so an omitted entry between a call and its result belongs to no unit. The pending unit cannot be folded; every other range can, including abandoned calls whose results never arrived.
 5. A mutation appends one complete snapshot only after all validation succeeds. Reads append nothing.
 
@@ -48,7 +48,8 @@ New branch messages are appended as roots when state is derived. Session reload 
 - `context_peek({id, offset?, limit?})` reads one original's authoritative text projection or exactly one fold summary as written, without the overlay's marker line. Lines are 1-based; the default limit is 100 and the footer always reports total item lines.
 - `context_search({patterns})` searches every raw current-branch original and every reachable fold summary once. Results contain stable IDs, parent-fold location and lookup-compatible line numbers.
 - `context_fold({items})` atomically wraps disjoint contiguous root ranges. Each item has an explicit summary, which may be empty. Tool-unit boundaries expand the range when necessary. Existing folds remain unchanged children; summaries are never concatenated.
-- `context_summary({id, summary})` replaces only a root fold's summary. Hidden summaries are immutable.
+
+To revise a root fold's summary, use `context_fold({items: [{from: id, summary}]})`. Omitting `to` selects just that root. The new fold has a fresh ID and retains the previous fold as its single child; the previous summary remains readable and searchable under its original ID.
 
 Every rejection names the id, item number or pattern the caller supplied together with the next step (call `context_map`, fold the containing root, combine overlapping items, or wait for the pending unit).
 
@@ -58,7 +59,7 @@ There is no unfold operation and no persistent navigation state.
 
 Pi builds each request from its session projection (`buildSessionProjection()`, `context_edit` applied) and appends whatever is not persisted yet. Other extensions' `context` handlers may run first and insert messages (e.g. synthetic results for an abandoned tool call); Pi gives no control over handler order. So the projection minus system messages must appear in the `context` event messages as an ordered subsequence, matched greedily by identity or deep equality. That alignment gives every matched request message its owning entry id — no timestamp or content heuristics are needed.
 
-The overlay walks the request: a fold emits one synthetic user message at its anchor: a marker line `[#<fold id>] archived fold summary:`, then its summary or a small empty-summary placeholder. The marker keeps archive text distinct from real user text and hands the model the id it needs for `context_summary` and `context_peek`; its other members are dropped; a fold without a live member emits nothing; an unmatched message between projected positions is a foreign insertion owned by the root of the nearest preceding projected position, so it is dropped with a fold (a result of a folded call must not outlive its call); everything else, including messages before the first projected position and the unpersisted tail, passes through unchanged. If some projected position is missing from the request (another handler removed or changed it), the extension notifies an error and returns the request untouched rather than risking a dropped tool result.
+The overlay walks the request: a fold emits one synthetic user message at its anchor: a marker line `[#<fold id>] archived fold summary:`, then its summary or a small empty-summary placeholder. The marker keeps archive text distinct from real user text and hands the model the id it needs for `context_fold` and `context_peek`; its other members are dropped; a fold without a live member emits nothing; an unmatched message between projected positions is a foreign insertion owned by the root of the nearest preceding projected position, so it is dropped with a fold (a result of a folded call must not outlive its call); everything else, including messages before the first projected position and the unpersisted tail, passes through unchanged. If some projected position is missing from the request (another handler removed or changed it), the extension notifies an error and returns the request untouched rather than risking a dropped tool result.
 
 The raw session branch is never rewritten, so original typed message objects and image sources remain there. Lookup/search use one text serializer. It labels images rather than claiming their binary data is lossless text, and includes the serializer's existing assistant-thinking/tool-call projections.
 
@@ -68,7 +69,7 @@ Originals Pi omits from the model context stay searchable archive leaves with ze
 
 Map and search synthesize aggregate output that never lived in context as one unit, so both respect the UTF-8 byte cap. The map is the id index and favors completeness over detail: it shrinks all previews uniformly, down to none, until every item fits, and says so in its footer; a bare index that still exceeds the cap is returned whole. Search lines are bounded, and search emission is capped and asks the caller to refine the regex. Peek is exempt: it returns exactly one item, which is either an original message that already fit in context once or a schema-bounded fold summary, so it is returned whole and paged only by line offset/limit — a single over-long line is never clipped into an unreachable tail. No tool writes a recursive archive dump to model context.
 
-Token sizes are documented estimates. Fold and summary results report the signed estimated live-context delta, so a large summary may correctly report growth rather than false savings.
+Token sizes are documented estimates. Fold results report the signed estimated live-context delta, so a large summary may correctly report growth rather than false savings.
 
 ## Native compaction
 

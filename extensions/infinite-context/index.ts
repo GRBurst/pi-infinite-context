@@ -12,13 +12,12 @@ import {
   findItem,
   messageItem,
   parseSnapshot,
-  replaceRootSummary,
   snapshot,
   syncOriginals,
   wrapRootRanges,
 } from "./forest.ts";
 import { visibleTokens } from "./fold-projection.ts";
-import { notAFoldRootError, unknownIdError } from "./id-errors.ts";
+import { unknownIdError } from "./id-errors.ts";
 import { branchOriginals, projectedPositions } from "./originals.ts";
 import { ProjectionMismatchError, buildOverlay } from "./overlay.ts";
 import { planRootRanges } from "./plan-root-ranges.ts";
@@ -298,13 +297,14 @@ export default function infiniteContext(pi: ExtensionAPI) {
     name: "context_fold",
     label: "Context fold",
     description:
-      "Wrap contiguous root ranges in new folds. Each explicit summary is the new fold's projection; existing folds become children unchanged. The batch is all-or-nothing and tool calls/results remain indivisible.",
+      "Wrap contiguous root ranges in new folds. Each explicit summary is the new fold's projection; existing folds become children unchanged. Refold a single root fold to revise its active summary while preserving history. The batch is all-or-nothing and tool calls/results remain indivisible.",
     promptSnippet: "Fold completed context into a searchable recursive archive before the context limit",
     promptGuidelines: [
       "Use context_fold proactively after completed exploration, debugging, implementation, or verification phases and after large tool results; native compaction is blocked.",
       "Keep governing instructions, the active request, unresolved errors, open decisions, and evidence needed soon as roots. Fold only when the replacement is worthwhile.",
       "Write a short context_fold summary containing durable state, decisions, open loops, paths/symbols, and gotchas; use an empty summary only for disposable noise.",
-      "Use context_map for root ids, context_search to locate archived text, context_peek to read it, and context_summary to replace only a root fold summary. Reads never unfold context.",
+      "Use context_map for root ids, context_search to locate archived text, and context_peek to read it. Reads never unfold context.",
+      "Revise a root fold with context_fold({items:[{from:id, summary:newSummary}]}): the new wrapper preserves the previous fold and summary as history.",
     ],
     parameters: Type.Object({
       items: Type.Array(
@@ -343,33 +343,6 @@ export default function infiniteContext(pi: ExtensionAPI) {
       return {
         content: [{ type: "text", text: `Created ${ids.length} fold${ids.length === 1 ? "" : "s"}: ${ids.map((id) => `[#${id}]`).join(", ")} · ${effect}` }],
         details: { ids, deltaTokens: delta },
-      };
-    },
-  });
-
-  pi.registerTool({
-    name: "context_summary",
-    label: "Context summary",
-    description:
-      "Replace the summary of one root fold. Hidden fold summaries are immutable; an empty string clears the summary.",
-    parameters: Type.Object({
-      id: IdParam("Root fold id."),
-      summary: SummaryParam("Exact replacement summary; empty clears it."),
-    }),
-    executionMode: "sequential",
-    async execute(_callId, params, _signal, _update, ctx) {
-      const state = current(ctx);
-      const id = bareId(params.id);
-      if (!state.roots.some((root) => root.kind === "fold" && root.id === id))
-        throw notAFoldRootError(state.roots, id);
-      const before = visibleTokens(state.roots, state.byId);
-      const next = replaceRootSummary(state.roots, id, params.summary);
-      const after = visibleTokens(next, state.byId);
-      persist(next);
-      const delta = after - before;
-      return {
-        content: [{ type: "text", text: `Updated [#${id}] summary · estimated live-context delta ${delta >= 0 ? "+" : ""}${delta} tokens` }],
-        details: { id, deltaTokens: delta },
       };
     },
   });
