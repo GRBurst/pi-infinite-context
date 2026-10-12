@@ -8,7 +8,7 @@ Keep working in one [Pi](https://pi.dev/) session for longer. The agent replaces
 2. **Fold again:** A new fold can contain earlier folds and more messages. To revise a summary, the agent folds just that fold with a new summary. Earlier summaries and original messages stay intact.
 3. **Find:** The agent can search the archive and read what it needs. Reading does not unfold anything or change the fold tree.
 
-![The model sees user and agent messages, a fold summary, and a tool call with its result. The summary links to a saved range containing an earlier summary and more user, agent, and tool messages in their original order. The earlier summary also keeps its messages.](docs/folding.svg)
+![On the left, the model sees a message, Summary B, and another message from top to bottom. Summary B represents the unchanged Fold B archive on the right, containing a message, the earlier Fold A, and another message. Fold A keeps Summary A and its original messages.](docs/folding.svg)
 
 The archive belongs to the current session branch. Folding changes what is sent to the model, not the chat history shown in Pi.
 

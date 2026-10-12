@@ -1,65 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="456" viewBox="0 0 960 456" role="img" aria-labelledby="title description">
-  <title id="title">A summary stands in for a range of messages</title>
-  <desc id="description">In order, the model sees a user message, a fold summary, another user message, an agent tool call, its tool result, and an agent message. The summary stands in for the saved range below: a user message, an earlier summary, an agent message, an agent tool call, its tool result, and another agent message. The earlier summary also keeps its original messages. All saved contents remain searchable and readable without unfolding.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="650" viewBox="0 0 920 650" role="img" aria-labelledby="title description">
+  <title id="title">A summary represents a preserved, nested archive</title>
+  <desc id="description">On the left, the model receives a message, Summary B, and another message, in order from top to bottom. Summary B represents Fold B in the archive on the right. Fold B keeps a message, the earlier Fold A, and another message, in the same order. Fold A keeps Summary A and its two original messages. Existing folds and messages stay unchanged.</desc>
 
-  <!-- KISS: one context row and its saved range show order, tool exchanges, and nesting without a second before/after view. -->
+  <!-- KISS: vertical sequences and nested boundaries show order and containment without a legend. -->
   <style>
     text { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 22px; fill: #1f2328; }
     .heading { font-weight: 650; }
     .center { text-anchor: middle; }
     .note { font-size: 18px; fill: #59636e; }
     .message { fill: #f6f8fa; stroke: #8c959f; stroke-width: 1.5; }
-    .summary { fill: #e4f5ed; stroke: #347d59; stroke-width: 1.5; }
+    .summary-b { fill: #e4f5ed; stroke: #347d59; stroke-width: 1.5; }
+    .fold-b { fill: #f5fbf7; stroke: #347d59; stroke-width: 1.5; }
+    .fold-a { fill: #f0f6ff; stroke: #3973ac; stroke-width: 1.5; }
     .line { fill: none; stroke: #8c959f; stroke-width: 2; }
-    .range { fill: none; stroke: #347d59; stroke-width: 1.5; stroke-dasharray: 5 4; }
-    .divider { stroke: #8c959f; stroke-width: 1; stroke-dasharray: 4 5; }
+    .reference { fill: none; stroke: #347d59; stroke-width: 2; }
+    .arrow { fill: #347d59; }
     @media (prefers-color-scheme: dark) {
       text { fill: #f0f6fc; }
       .note { fill: #b1bac4; }
       .message { fill: #212830; stroke: #919ba5; }
-      .summary { fill: #19382f; stroke: #62b38f; }
-      .line, .divider { stroke: #919ba5; }
-      .range { stroke: #62b38f; }
+      .summary-b { fill: #19382f; stroke: #62b38f; }
+      .fold-b { fill: #14271f; stroke: #62b38f; }
+      .fold-a { fill: #182c43; stroke: #79b8ff; }
+      .line { stroke: #919ba5; }
+      .reference { stroke: #62b38f; }
+      .arrow { fill: #62b38f; }
     }
   </style>
+  <defs>
+    <marker id="reference-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path class="arrow" d="M 0 0 L 10 5 L 0 10 Z"/>
+    </marker>
+  </defs>
 
-  <text class="heading" x="20" y="32">Sent to the model</text>
-  <text class="note" x="940" y="32" text-anchor="end">older → newer</text>
-  <path class="line" d="M 85 96 H 880"/>
-  <rect class="message" x="20" y="60" width="130" height="72" rx="7"/>
-  <text class="center" x="85" y="91">User<tspan class="note" x="85" dy="25">message</tspan></text>
-  <rect class="summary" x="170" y="60" width="180" height="72" rx="7"/>
-  <text class="center" x="260" y="103">Summary</text>
-  <rect class="message" x="370" y="60" width="130" height="72" rx="7"/>
-  <text class="center" x="435" y="91">User<tspan class="note" x="435" dy="25">message</tspan></text>
-  <rect class="message" x="520" y="60" width="130" height="72" rx="7"/>
-  <text class="center" x="585" y="91">Agent<tspan class="note" x="585" dy="25">tool call</tspan></text>
-  <rect class="message" x="670" y="60" width="130" height="72" rx="7"/>
-  <text class="center" x="735" y="91">Tool<tspan class="note" x="735" dy="25">result</tspan></text>
-  <rect class="message" x="820" y="60" width="120" height="72" rx="7"/>
-  <text class="center" x="880" y="91">Agent<tspan class="note" x="880" dy="25">message</tspan></text>
+  <text class="heading" x="24" y="36">Sent to the model</text>
+  <text class="heading" x="384" y="36">Archive · unchanged</text>
 
-  <line class="divider" x1="20" y1="176" x2="940" y2="176"/>
-  <path class="line" d="M 260 132 V 238"/>
-  <text class="heading" x="370" y="213">Saved range · kept in order</text>
-  <!-- The Map Is Not the Territory: the linked range is preserved source, not additional model input. -->
-  <rect class="range" x="10" y="238" width="940" height="100" rx="10"/>
-  <path class="line" d="M 85 288 H 880"/>
-  <rect class="message" x="20" y="252" width="130" height="72" rx="7"/>
-  <text class="center" x="85" y="283">User<tspan class="note" x="85" dy="25">message</tspan></text>
-  <rect class="summary" x="170" y="252" width="180" height="72" rx="7"/>
-  <text class="center" x="260" y="283">Earlier<tspan x="260" dy="25">summary</tspan></text>
-  <rect class="message" x="370" y="252" width="130" height="72" rx="7"/>
-  <text class="center" x="435" y="283">Agent<tspan class="note" x="435" dy="25">message</tspan></text>
-  <rect class="message" x="520" y="252" width="130" height="72" rx="7"/>
-  <text class="center" x="585" y="283">Agent<tspan class="note" x="585" dy="25">tool call</tspan></text>
-  <rect class="message" x="670" y="252" width="130" height="72" rx="7"/>
-  <text class="center" x="735" y="283">Tool<tspan class="note" x="735" dy="25">result</tspan></text>
-  <rect class="message" x="820" y="252" width="120" height="72" rx="7"/>
-  <text class="center" x="880" y="283">Agent<tspan class="note" x="880" dy="25">message</tspan></text>
+  <path class="line" d="M 146 224 V 426"/>
+  <rect class="message" x="24" y="150" width="244" height="74" rx="8"/>
+  <text class="center" x="146" y="195">Message</text>
+  <rect class="summary-b" x="24" y="288" width="244" height="74" rx="8"/>
+  <text class="center" x="146" y="333">Summary B</text>
+  <rect class="message" x="24" y="426" width="244" height="74" rx="8"/>
+  <text class="center" x="146" y="471">Message</text>
 
-  <path class="line" d="M 260 324 V 382"/>
-  <rect class="message" x="150" y="382" width="220" height="54" rx="7"/>
-  <text class="center" x="260" y="417">Earlier messages</text>
-  <text class="note" x="480" y="416">Search and read without unfolding.</text>
+  <!-- The Map Is Not the Territory: the summary references the entire archived fold, not one of its children. -->
+  <text class="note center" x="326" y="310">represents</text>
+  <path class="reference" d="M 268 325 H 384" marker-end="url(#reference-arrow)"/>
+
+  <rect class="fold-b" x="384" y="70" width="512" height="556" rx="12"/>
+  <text class="heading" x="408" y="110">Fold B</text>
+  <path class="line" d="M 640 208 V 520"/>
+  <rect class="message" x="424" y="140" width="432" height="68" rx="8"/>
+  <text class="center" x="640" y="182">Original message</text>
+
+  <!-- Favor Immutability: Fold A remains one complete child, including its summary and original messages. -->
+  <rect class="fold-a" x="424" y="244" width="432" height="240" rx="10"/>
+  <text class="heading" x="448" y="280">Fold A · Summary A</text>
+  <path class="line" d="M 640 372 V 402"/>
+  <rect class="message" x="454" y="314" width="372" height="58" rx="7"/>
+  <text class="center" x="640" y="351">Original message</text>
+  <rect class="message" x="454" y="402" width="372" height="58" rx="7"/>
+  <text class="center" x="640" y="439">Original message</text>
+
+  <rect class="message" x="424" y="520" width="432" height="68" rx="8"/>
+  <text class="center" x="640" y="562">Original message</text>
 </svg>
