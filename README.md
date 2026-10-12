@@ -41,8 +41,11 @@ There is no `unfold` tool. Pi's own compaction is blocked, including `/compact`.
 ## Install
 
 ```bash
-pi install git:github.com/fdietze/pi-infinite-context
+pi install npm:pi-infinite-context
 ```
+
+Successful pushes to `main` publish a new npm version after CI checks pass.
+To install directly from GitHub instead, use `pi install git:github.com/fdietze/pi-infinite-context`.
 
 Start a new session after installing. Sessions with old extension data or earlier Pi compaction are not supported.
 
@@ -55,6 +58,7 @@ nix develop -c npm run e2e   # drives the real pi binary with a scripted provide
 ```
 
 See [DESIGN.md](DESIGN.md) for the data model and exact tool rules.
+See [docs/publishing.md](docs/publishing.md) for CI releases and the one-time npm setup.
 
 ## License
 

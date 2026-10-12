@@ -21,7 +21,8 @@
         packages = [
           pkgs.nodejs_24 # node --test runner (strips TS types natively)
           pkgs.typescript-go # `tsgo` type-checker
-          pkgs.oxlint # linter
+          pkgs.oxlint # TypeScript linter
+          pkgs.actionlint # validates the publishing workflow
         ];
       };
     });

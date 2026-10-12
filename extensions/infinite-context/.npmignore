@@ -1,0 +1,3 @@
+# Keep the installable extension separate from its test harness.
+*.test.ts
+pi-test-fixtures.ts

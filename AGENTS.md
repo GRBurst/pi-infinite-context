@@ -1,6 +1,11 @@
 # Repository map
 
 - `README.md`: user-facing purpose, tools, context reminders, installation, and limits.
+- `docs/publishing.md`: CI release semantics and one-time npm Trusted Publisher setup.
+- `.github/workflows/ci.yml`: checks and serialized OIDC publishing on pushes to `main`.
+- `scripts/publish.ts`: CI-only versioning, tarball integrity checks and release-tag selection.
+- `scripts/*.test.ts`: release-policy and real package-content checks.
+- `package.json` → `files`, `extensions/infinite-context/.npmignore`: published files and test exclusions.
 - `docs/folding.svg`: recursive folding diagram embedded in the README.
 - `DESIGN.md`: authoritative fold-tree invariants and public tool semantics.
 - `extensions/infinite-context/index.ts`: Pi integration and tool registration.

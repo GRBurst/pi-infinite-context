@@ -10,14 +10,16 @@
     "url": "git+https://github.com/fdietze/pi-infinite-context.git"
   },
   "type": "module",
+  "files": ["extensions/infinite-context", "docs/folding.svg", "docs/publishing.md", "DESIGN.md"],
   "pi": {
     "extensions": ["extensions/infinite-context/index.ts"]
   },
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json",
-    "lint": "oxlint extensions e2e",
-    "test": "find extensions -name '*.test.ts' -print0 | xargs -0 -r node --test",
-    "ci": "npm run typecheck && npm run lint && npm run test",
+    "lint": "oxlint extensions e2e scripts",
+    "test": "find extensions scripts -name '*.test.ts' -print0 | xargs -0 -r node --test",
+    "publish:ci": "node scripts/publish.ts",
+    "ci": "actionlint -ignore '^unexpected key \"queue\" for \"concurrency\" section\\.' && npm run typecheck && npm run lint && npm run test",
     "e2e": "node --test e2e/*.e2e.ts"
   },
   "peerDependencies": {

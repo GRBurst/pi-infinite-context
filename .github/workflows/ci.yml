@@ -4,13 +4,37 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # Toolchain (node, tsgo, oxlint) comes from the flake dev shell; type
-      # libraries come from `npm ci`. https://github.com/NixOS/nix-installer
-      - uses: DeterminateSystems/nix-installer-action@main
+      # Pin actions because this workflow also receives npm publishing authority.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # DRY: all toolchain versions come from flake.lock, not a second Node setup.
+      - uses: DeterminateSystems/nix-installer-action@2cb76beab460be7e44442c7ebdcbc30b638416df
       - run: nix develop --command npm ci
       - run: nix develop --command npm run ci
+      - run: nix develop --command npm run e2e
+
+  publish:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'fdietze/pi-infinite-context'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # Queue releases without canceling intervening pushes. The script also
+    # guards `latest` against older runs reaching this queue after newer ones.
+    # actionlint's schema lags GitHub's queue support; package.json ignores
+    # only that unknown-key diagnostic, keeping other workflow checks active.
+    concurrency:
+      group: npm-publish
+      queue: max
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: DeterminateSystems/nix-installer-action@2cb76beab460be7e44442c7ebdcbc30b638416df
+      # The source is TypeScript: publishing needs npm, not another install/build.
+      - run: nix develop --command npm run publish:ci
