@@ -1,41 +1,6 @@
 # pi-infinite-context
 
-Keep working in one [Pi](https://pi.dev/) session for longer. The agent replaces old work in its context with short summaries. The original messages stay saved and searchable.
-
-## How it works
-
-1. **Fold:** The agent groups a stretch of its context into a **fold** and writes a summary. The model sees that summary, labeled with the fold's ID, instead of the messages inside.
-2. **Fold again:** A new fold can contain earlier folds and more messages. To revise a summary, the agent folds just that fold with a new summary. Earlier summaries and original messages stay intact.
-3. **Find:** The agent can search the archive and read what it needs. Reading does not unfold anything or change the fold tree.
-
-![On the left, the model sees a message, Summary B, and another message from top to bottom. Summary B represents Fold B in the archive on the right. Each fold has its summary in the header and ordered children below. Fold B contains an original message, Fold A, and another original message. Fold A contains two original messages.](docs/folding.svg)
-
-The archive belongs to the current session branch. Folding changes what is sent to the model, not the chat history shown in Pi.
-
-## Tools
-
-The agent uses these four tools:
-
-| Tool | What it does |
-| --- | --- |
-| `context_fold` | Groups a stretch of visible context into a fold with a new summary. |
-| `context_map` | Lists the whole visible context, or the direct contents of one fold, as one compact line per item. |
-| `context_search` | Searches original messages and fold summaries using regular expressions. |
-| `context_peek` | Reads one original message or fold summary by ID, with an optional line range. |
-
-Map and search results provide the IDs to read next. Reading returns up to 100 lines by default and reports the total line count. Large tool outputs are limited. Read results also use context space, so the agent should read only what it needs.
-
-## Context reminders
-
-When Pi estimates that context is at least **75% full**, the extension sends the agent a visible **context nudge** during ongoing tool work. It asks the agent to fold completed work while keeping the current task, open questions, errors, and useful evidence. It reminds the agent again if usage keeps rising.
-
-The reminder does not fold anything itself. The agent chooses what to fold and writes the summaries.
-
-## Limits
-
-This extension does not enlarge the model's context window. Summaries can leave out details; the agent may need to find them in the archive later.
-
-There is no `unfold` tool. Pi's own compaction is blocked, including `/compact`. If the agent does not fold enough in time, a context overflow remains an error rather than triggering another kind of summary.
+A [Pi](https://pi.dev/) extension for long-running sessions. The agent replaces old work in its context with short summaries. The original messages stay saved and searchable.
 
 ## Install
 
@@ -43,22 +8,29 @@ There is no `unfold` tool. Pi's own compaction is blocked, including `/compact`.
 pi install npm:pi-infinite-context
 ```
 
-Successful pushes to `main` publish a new npm version after CI checks pass.
-To install directly from GitHub instead, use `pi install git:github.com/fdietze/pi-infinite-context`.
+Start a new session after installing.
 
-Start a new session after installing. Sessions with old extension data or earlier Pi compaction are not supported.
+## How it works
 
-## Development
+![On the left, the model sees a message, Summary B, and another message from top to bottom. Summary B represents Fold B in the archive on the right. Each fold has its summary in the header and ordered children below. Fold B contains an original message, Fold A, and another original message. Fold A contains two original messages.](docs/folding.svg)
 
-```bash
-nix develop -c npm ci
-nix develop -c npm run ci
-nix develop -c npm run e2e   # drives the real pi binary with a scripted provider
-```
+A **fold** groups messages under a summary. The model sees the summary instead of those messages; the originals stay in the archive. Folds can contain earlier folds, as Fold B contains Fold A above. The agent can search and read the archive without unfolding it. Pi's chat history stays unchanged.
 
-See [DESIGN.md](DESIGN.md) for the archive model and invariants.
-See [docs/publishing.md](docs/publishing.md) for CI releases and the one-time npm setup.
+## Tools
 
-## License
+| Tool | What it does |
+| --- | --- |
+| `context_fold` | Groups consecutive messages or folds under a new summary. |
+| `context_map` | Lists top-level messages and folds, or the direct contents of one fold. |
+| `context_search` | Searches original messages and fold summaries using regular expressions. |
+| `context_peek` | Reads one original message or fold summary by ID, with an optional line range. |
 
-[MIT](LICENSE)
+Map and search results provide the IDs to read next.
+
+## Context reminders
+
+When Pi estimates that context is at least **75% full**, the extension reminds the agent during tool work to fold completed work while keeping the current task, open questions, errors, and useful evidence. It reminds again as usage rises.
+
+The agent chooses what to fold and writes the summaries. Reminders do not fold anything themselves.
+
+Pi's own compaction, including `/compact`, is blocked. If the agent does not fold enough, the context can still overflow.

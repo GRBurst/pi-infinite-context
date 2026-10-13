@@ -7,7 +7,7 @@ Use simple, accurate English and keep both documents very concise.
 
 # Repository map
 
-- `README.md`: user-facing purpose, tools, context reminders, installation, and limits.
+- `README.md`: purpose, installation, folding diagram, tools, and context reminders.
 - `docs/publishing.md`: CI release semantics and one-time npm Trusted Publisher setup.
 - `.github/workflows/ci.yml`: checks and serialized OIDC publishing on pushes to `main`.
 - `scripts/publish.ts`: CI-only versioning, tarball integrity checks and release-tag selection.
