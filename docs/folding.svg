@@ -37,7 +37,7 @@
     </marker>
   </defs>
 
-  <text class="heading" x="24" y="36">Sent to the model</text>
+  <text class="heading" x="24" y="36">Context sent to the model</text>
   <text class="heading" x="384" y="36">Archive</text>
 
   <path class="line" d="M 146 256 V 514"/>
@@ -59,7 +59,7 @@
   <line class="header-b" x1="384" y1="162" x2="896" y2="162"/>
   <path class="line" d="M 640 246 V 594"/>
   <rect class="message" x="424" y="182" width="432" height="64" rx="8"/>
-  <text class="center" x="640" y="222">Original message</text>
+  <text class="center" x="640" y="222">Message</text>
 
   <!-- Favor Immutability: Fold A remains one complete child, including its summary and original messages. -->
   <rect class="fold-a" x="424" y="282" width="432" height="276" rx="10"/>
@@ -68,10 +68,10 @@
   <line class="header-a" x1="424" y1="374" x2="856" y2="374"/>
   <path class="line" d="M 640 454 V 482"/>
   <rect class="message" x="454" y="394" width="372" height="60" rx="7"/>
-  <text class="center" x="640" y="432">Original message</text>
+  <text class="center" x="640" y="432">Message</text>
   <rect class="message" x="454" y="482" width="372" height="60" rx="7"/>
-  <text class="center" x="640" y="520">Original message</text>
+  <text class="center" x="640" y="520">Message</text>
 
   <rect class="message" x="424" y="594" width="432" height="64" rx="8"/>
-  <text class="center" x="640" y="634">Original message</text>
+  <text class="center" x="640" y="634">Message</text>
 </svg>
