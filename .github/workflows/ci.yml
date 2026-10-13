@@ -38,3 +38,6 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@2cb76beab460be7e44442c7ebdcbc30b638416df
       # The source is TypeScript: publishing needs npm, not another install/build.
       - run: nix develop --command npm run publish:ci
+        env:
+          # npm otherwise hides OIDC rejection details behind ENEEDAUTH.
+          NPM_CONFIG_LOGLEVEL: verbose
