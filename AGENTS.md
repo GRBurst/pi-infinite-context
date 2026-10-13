@@ -1,3 +1,10 @@
+# Documentation
+
+Use simple, accurate English and keep both documents very concise.
+
+- `README.md`: only a short purpose description, installation, the diagram with a short explanation below it, tools, and context reminders, in that order.
+- `DESIGN.md`: only vocabulary, data structure, algebra, and invariants. Check the model against the code.
+
 # Repository map
 
 - `README.md`: user-facing purpose, tools, context reminders, installation, and limits.
