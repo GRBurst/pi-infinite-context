@@ -56,7 +56,7 @@ nix develop -c npm run ci
 nix develop -c npm run e2e   # drives the real pi binary with a scripted provider
 ```
 
-See [DESIGN.md](DESIGN.md) for the data model and exact tool rules.
+See [DESIGN.md](DESIGN.md) for the archive model and invariants.
 See [docs/publishing.md](docs/publishing.md) for CI releases and the one-time npm setup.
 
 ## License

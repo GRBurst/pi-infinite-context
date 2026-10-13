@@ -1,97 +1,50 @@
-# infinite-context design
-
-## Goal
-
-Grow a searchable archive while keeping a finite working context. The archive is the sole compactor; reads never permanently restore hidden messages.
+# Archive model
 
 ## Vocabulary
 
-- **original**: one addressable raw entry on the current session branch; it is an archive leaf and is never rewritten.
-- **root**: a top-level item of the fold forest — what `context_map` lists.
-- **live**: the message as the model receives it, taken from Pi's session projection. It is undefined when Pi omits the entry: a `context_edit` omission (retry recovery) or a `bashExecution` excluded from context. Liveness alone drives token cost, tool units and anchoring.
-- **anchor**: the first live member of a root; the position where a fold's summary appears in the request.
-- **pending unit**: the last live assistant of the branch when some of its calls still lack a live result — the turn that is currently executing.
+- **Original:** an addressable message on the current Pi session branch; an archive leaf.
+- **Fold:** a node with a summary and ordered children, which may be originals or folds.
+- **Forest:** the ordered list of trees forming the archive. Its top-level nodes are **roots**.
+- **Live:** included in Pi's session projection, before folding is applied. Omitted originals remain archived.
 
-## State
+## Data structure
 
-The last `infinite-context` custom entry on the current raw session branch is the authoritative cumulative snapshot:
+Serialized form ([`forest.ts`](extensions/infinite-context/forest.ts)):
 
 ```ts
 type Item =
-  | { readonly kind: "message"; readonly id: string }
-  | {
-      readonly kind: "fold";
-      readonly id: string;
-      readonly summary: string;
-      readonly children: readonly Item[];
-    };
+  | { kind: "message"; id: string }
+  | { kind: "fold"; id: string; summary: string; children: Item[] };
 
-interface Snapshot {
-  readonly version: 2;
-  readonly roots: readonly Item[];
-}
+type Snapshot = { version: 2; roots: Item[] };
 ```
 
-The invariants are:
+Original text stays in Pi's session; a leaf stores only its entry ID. The last snapshot on the current branch supplies the forest; later originals append as roots.
 
-1. Leaves contain every addressable original on the current branch exactly once and in branch order.
-2. Node IDs are globally unique. Fold IDs do not reuse Pi session-entry IDs.
-3. A fold has at least one child. Its summary is a projection of that node, not another child. Existing folds, including their summaries, remain unchanged when wrapped in a new fold.
-4. A live assistant tool call and its live results either all remain unfolded roots, or are folded together into one subtree. Tool units have live members only, so an omitted entry between a call and its result belongs to no unit. The pending unit cannot be folded; every other range can, including abandoned calls whose results never arrived.
-5. A mutation appends one complete snapshot only after all validation succeeds. Reads append nothing.
+## Algebra
 
-New branch messages are appended as roots when state is derived. Session reload and tree navigation reconstruct from the last snapshot on that current branch. Old span snapshots and branches containing native compaction are rejected with a new-session instruction; there is intentionally no migration layer.
+`++` concatenates lists. Folding wraps a nonempty contiguous root range `X` with a fresh ID and summary `s`:
 
-## Operations
+```text
+L ++ X ++ R  ->  L ++ [fold(id, s, X)] ++ R
+```
 
-- `context_map({id?})` lists all roots, or all of one fold's direct children, in one response. Lines are `[#id] <role> ~<tokens> · <preview>` and `[#id] fold <N> msgs ~<tokens> · <summary preview>`; items Pi omits from the model context say `not live` instead of tokens. Previews are the first 40 code points of a compact preview projection (`preview-message.ts`: assistant thinking dropped, tool calls as `<name> <argument values>`), separate from the authoritative serialization. It never recursively dumps a subtree.
-- `context_peek({id, offset?, limit?})` reads one original's authoritative text projection or exactly one fold summary as written, without the overlay's marker line. Lines are 1-based; the default limit is 100 and the footer always reports total item lines.
-- `context_search({patterns})` searches every raw current-branch original and every reachable fold summary once. Results contain stable IDs, parent-fold location and lookup-compatible line numbers.
-- `context_fold({items})` atomically wraps disjoint contiguous root ranges. Each item has an explicit summary, which may be empty. Tool-unit boundaries expand the range when necessary. Existing folds remain unchanged children; summaries are never concatenated.
+Let `leaves` list original IDs in order:
 
-To revise a root fold's summary, use `context_fold({items: [{from: id, summary}]})`. Omitting `to` selects just that root. The new fold has a fresh ID and retains the previous fold as its single child; the previous summary remains readable and searchable under its original ID.
+```text
+leaves(message(id))   = [id]
+leaves(fold(id, s, X)) = leaves(X)
+leaves([])            = []
+leaves([x] ++ X)      = leaves(x) ++ leaves(X)
+```
 
-Every rejection names the id, item number or pattern the caller supplied together with the next step (call `context_map`, fold the containing root, combine overlapping items, or wait for the pending unit).
+Revising a summary means `fold(newId, newSummary, [oldFold])`, not changing `oldFold`.
 
-There is no unfold operation and no persistent navigation state.
+## Invariants
 
-## Context projection
-
-Pi builds each request from its session projection (`buildSessionProjection()`, `context_edit` applied) and appends whatever is not persisted yet. Other extensions' `context` handlers may run first and insert messages (e.g. synthetic results for an abandoned tool call); Pi gives no control over handler order. So the projection minus system messages must appear in the `context` event messages as an ordered subsequence, matched greedily by identity or deep equality. That alignment gives every matched request message its owning entry id — no timestamp or content heuristics are needed.
-
-The overlay walks the request: a fold emits one synthetic user message at its anchor: a marker line `[#<fold id>] archived fold summary:`, then its summary or a small empty-summary placeholder. The marker keeps archive text distinct from real user text and hands the model the id it needs for `context_fold` and `context_peek`; its other members are dropped; a fold without a live member emits nothing; an unmatched message between projected positions is a foreign insertion owned by the root of the nearest preceding projected position, so it is dropped with a fold (a result of a folded call must not outlive its call); everything else, including messages before the first projected position and the unpersisted tail, passes through unchanged. If some projected position is missing from the request (another handler removed or changed it), the extension notifies an error and returns the request untouched rather than risking a dropped tool result.
-
-The raw session branch is never rewritten, so original typed message objects and image sources remain there. Lookup/search use one text serializer. It labels images rather than claiming their binary data is lossless text, and includes the serializer's existing assistant-thinking/tool-call projections.
-
-Originals Pi omits from the model context stay searchable archive leaves with zero live cost, and never anchor a fold.
-
-## Output safety
-
-Map and search synthesize aggregate output that never lived in context as one unit, so both respect the UTF-8 byte cap. The map is the id index and favors completeness over detail: it shrinks all previews uniformly, down to none, until every item fits, and says so in its footer; a bare index that still exceeds the cap is returned whole. Search lines are bounded, and search emission is capped and asks the caller to refine the regex. Peek is exempt: it returns exactly one item, which is either an original message that already fit in context once or a schema-bounded fold summary, so it is returned whole and paged only by line offset/limit — a single over-long line is never clipped into an unreachable tail. No tool writes a recursive archive dump to model context.
-
-Token sizes are documented estimates. Fold results report the signed estimated live-context delta, so a large summary may correctly report growth rather than false savings.
-
-## Native compaction
-
-`session_before_compact` cancels `manual`, `threshold`, and `overflow` compaction. The extension does not mutate global or project Pi settings. Proactive 75%/5-point folding nudges remain; their wording states that native recovery is blocked and a real overflow stays visible.
-
-## Structure
-
-- `forest.ts`: snapshot types, parsing, traversal, invariant-preserving transforms.
-- `originals.ts`: raw branch entries joined with their live message.
-- `serialize-message.ts`: authoritative text projection of one message.
-- `preview-message.ts`: compact preview projection of one message for map lines.
-- `fold-projection.ts`: anchors, fold summary text, live token cost.
-- `tool-units.ts`: live tool units, the pending unit, snapshot ownership validation.
-- `plan-root-ranges.ts`: fold request resolution and tool-unit expansion.
-- `overlay.ts`: the request overlay.
-- `id-errors.ts`: actionable errors for caller-supplied ids.
-- `search.ts`: pure regex archive search.
-- `render-map.ts`: complete map listing that fits the output budget.
-- `output.ts`: line windows, token formatting, and global output budgets.
-- `nudge.ts`: pure proactive-nudge policy.
-- `index.ts`: Pi event/tool shell and persistence.
-- `*.test.ts`: property, unit and public integration tests.
-- `e2e/`: the real `pi` binary with a scripted provider (`npm run e2e`), asserting what the provider finally receives.
-
-The split follows a functional-core/imperative-shell boundary and keeps persistence and Pi APIs out of the archive transforms.
+1. Leaves contain every current-branch original exactly once, in branch order.
+2. Node IDs are nonempty, unique and stable. Fold IDs do not reuse session-entry IDs.
+3. A fold has at least one child. Its summary is a property, not a child, and may be empty. Existing nodes and original messages are never rewritten.
+4. A live assistant message containing tool calls and its live results are either all original roots or inside the same root fold. The last live assistant cannot be folded while any of its calls lack live results.
+5. In model context, a root fold's summary message replaces its live leaves at the first live leaf. A root without live leaves emits nothing.
+6. A batch wraps disjoint ranges atomically: all ranges validate before one complete snapshot is appended. Reads change nothing and never unfold.

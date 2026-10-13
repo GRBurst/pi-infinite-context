@@ -7,7 +7,7 @@
 - `scripts/*.test.ts`: release-policy and real package-content checks.
 - `package.json` → `files`, `extensions/infinite-context/.npmignore`: published files and test exclusions.
 - `docs/folding.svg`: recursive folding diagram embedded in the README.
-- `DESIGN.md`: authoritative fold-tree invariants and public tool semantics.
+- `DESIGN.md`: archive vocabulary, data structure, fold algebra, and invariants.
 - `extensions/infinite-context/index.ts`: Pi integration and tool registration.
 - `extensions/infinite-context/forest.ts`: pure recursive archive state and transforms.
 - `extensions/infinite-context/originals.ts`: branch entries joined with their live message from Pi's session projection.
