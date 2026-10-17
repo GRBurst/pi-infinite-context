@@ -6,6 +6,13 @@
  * (KISS — refusing to run over a typo'd number helps nobody). Nothing here grants authority.
  */
 
+/**
+ * Session entry type recording the effective settings, for retrospective analysis. Separate
+ * from the fold snapshot entry (forest.ts INFINITE_CONTEXT_ENTRY), whose latest entry is
+ * parsed as fold state on load.
+ */
+export const SETTINGS_ENTRY = "infinite-context:settings";
+
 export interface Settings {
   /** Remind once the context holds at least this many tokens. */
   readonly nudgeAtTokens: number;
@@ -47,4 +54,17 @@ export function parseSettings(json: string): Settings {
     nudgeAtTokens: positiveInt(value?.nudgeAtTokens, DEFAULT_SETTINGS.nudgeAtTokens),
     nudgeAtPercent: percent(value?.nudgeAtPercent, DEFAULT_SETTINGS.nudgeAtPercent),
   };
+}
+
+/**
+ * True when `recorded` (the data of the latest settings entry on the branch, if any) does not
+ * describe `current`. Untrusted session data, so anything unexpected counts as changed.
+ */
+export function settingsChanged(recorded: unknown, current: Settings): boolean {
+  if (typeof recorded !== "object" || recorded === null) return true;
+  const data = recorded as Record<string, unknown>;
+  return (
+    data.nudgeAtTokens !== current.nudgeAtTokens ||
+    data.nudgeAtPercent !== current.nudgeAtPercent
+  );
 }

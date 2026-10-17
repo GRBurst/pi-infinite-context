@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import fc from "fast-check";
-import { NUDGES_BEFORE_OVERFLOW, planNudge } from "./nudge.ts";
+import { NUDGES_BEFORE_OVERFLOW, nudgeSchedule, planNudge } from "./nudge.ts";
 import { DEFAULT_SETTINGS, type Settings } from "./settings.ts";
 
 const settings = (nudgeAtTokens: number, nudgeAtPercent: number): Settings => ({
   nudgeAtTokens,
   nudgeAtPercent,
+});
+
+test("the schedule per window size with the defaults", () => {
+  assert.deepEqual(nudgeSchedule(200_000, DEFAULT_SETTINGS), { threshold: 150_000, step: 15_000 });
+  assert.deepEqual(nudgeSchedule(1_000_000, DEFAULT_SETTINGS), { threshold: 150_000, step: 15_000 });
+  assert.deepEqual(nudgeSchedule(32_000, DEFAULT_SETTINGS), { threshold: 24_000, step: 8_000 / 3 });
 });
 
 test("a 200k window with the defaults nudges from 150k, as 75% did before", () => {

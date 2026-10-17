@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_SETTINGS, parseSettings } from "./settings.ts";
+import { DEFAULT_SETTINGS, parseSettings, settingsChanged } from "./settings.ts";
 
 test("an empty or unreadable file yields the defaults", () => {
   for (const input of ["", "not json", "null", "[]", "42", "{}"]) {
@@ -39,4 +39,13 @@ test("an invalid field falls back without disturbing the valid one", () => {
 
 test("unknown keys are ignored", () => {
   assert.deepEqual(parseSettings(JSON.stringify({ whatever: true })), DEFAULT_SETTINGS);
+});
+
+test("only a record that matches the current settings counts as unchanged", () => {
+  assert.equal(settingsChanged({ ...DEFAULT_SETTINGS }, DEFAULT_SETTINGS), false);
+  assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, nudgeAtTokens: 1 }, DEFAULT_SETTINGS), true);
+  assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, nudgeAtPercent: 1 }, DEFAULT_SETTINGS), true);
+  for (const recorded of [undefined, null, "x", 3, {}]) {
+    assert.equal(settingsChanged(recorded, DEFAULT_SETTINGS), true, String(recorded));
+  }
 });

@@ -26,8 +26,8 @@ import { ProjectionMismatchError, buildOverlay } from "./overlay.ts";
 import { planRootRanges } from "./plan-root-ranges.ts";
 import { serializeMessage } from "./serialize-message.ts";
 import { validateToolUnitOwnership } from "./tool-units.ts";
-import { planNudge } from "./nudge.ts";
-import { type Settings, parseSettings } from "./settings.ts";
+import { nudgeSchedule, planNudge } from "./nudge.ts";
+import { SETTINGS_ENTRY, type Settings, parseSettings, settingsChanged } from "./settings.ts";
 import { renderMap } from "./render-map.ts";
 import {
   DEFAULT_PAGE_LIMIT,
@@ -126,6 +126,17 @@ export default function infiniteContext(pi: ExtensionAPI) {
       roots = [];
       ctx.ui.notify(`infinite-context: ${stateError.message}`, "error");
     }
+    recordSettings(ctx);
+  };
+
+  // Every branch states the settings it ran under, so cost and token analyses of a session
+  // can be tied to its nudge limits. Appended only when the branch's latest record differs,
+  // which also captures a settings change after /reload.
+  const recordSettings = (ctx: ExtensionContext) => {
+    let recorded: unknown;
+    for (const entry of branch(ctx))
+      if (entry.type === "custom" && entry.customType === SETTINGS_ENTRY) recorded = entry.data;
+    if (settingsChanged(recorded, settings)) pi.appendEntry(SETTINGS_ENTRY, settings);
   };
 
   const current = (ctx: ExtensionContext) => {
@@ -205,7 +216,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
           "Keep the active request, open loops, unresolved errors, and evidence needed soon. " +
           "Native compaction is blocked, so an actual overflow will remain visible.\n</context-maintenance>",
         display: true,
-        details: { band: planned.band },
+        details: { band: planned.band, tokens, window, ...nudgeSchedule(window, settings) },
       },
       { deliverAs: "steer" },
     );

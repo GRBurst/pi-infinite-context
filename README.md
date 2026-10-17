@@ -37,6 +37,8 @@ Optional file `~/.pi/agent/infinite-context/settings.json` (inside Pi's configur
 { "nudgeAtTokens": 150000, "nudgeAtPercent": 75 }
 ```
 
+The session records the effective limits as a `custom` entry of type `infinite-context:settings` whenever they change, and each reminder carries its token count, window, threshold and step in `details`.
+
 The agent chooses what to fold and writes the summaries. Reminders do not fold anything themselves.
 
 Pi's own compaction, including `/compact`, is blocked. If the agent does not fold enough, the context can still overflow.

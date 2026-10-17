@@ -103,6 +103,25 @@ const entry = (
     : assistantMessage(content as Extract<AgentMessage, { role: "assistant" }>["content"], timestamp),
 );
 
+test("each branch records the effective settings once, again after switching to a branch without them", async () => {
+  const settingsEntries = (h: ReturnType<typeof harness>) =>
+    h.entries().filter((e) => e.type === "custom" && e.customType === "infinite-context:settings");
+  const source = [entry("u1", "user", "one", 1)];
+  const h = harness(source);
+  await h.emit("session_start");
+  await h.emit("session_start", { reason: "reload" });
+  assert.equal(settingsEntries(h).length, 1);
+  const recorded = settingsEntries(h)[0];
+  assert.deepEqual(recorded.type === "custom" && recorded.data, {
+    nudgeAtTokens: 150_000,
+    nudgeAtPercent: 75,
+  });
+
+  h.setEntries(source);
+  await h.emit("session_tree");
+  assert.equal(settingsEntries(h).length, 1);
+});
+
 test("registers the approved four-tool surface in sequential mode", () => {
   const h = harness([]);
   assert.deepEqual([...h.tools.keys()], [
