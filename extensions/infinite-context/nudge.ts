@@ -1,16 +1,38 @@
-export const NUDGE_BASE_PERCENT = 75;
-export const NUDGE_STEP_PERCENT = 5;
+import type { Settings } from "./settings.ts";
 
+/**
+ * Upper bound for the distance between two reminders. It exceeds the context growth of one
+ * fold cycle (map, peeks, summaries: ~10k tokens), so the agent is not nagged while it folds,
+ * and it is small enough that a missed reminder is repeated while folding still helps.
+ * A fixed token count (not a window share) because quality loss follows tokens.
+ */
+export const NUDGE_STEP_TOKENS = 15_000;
+
+/** Reminders that must fit between the threshold and the window's end. */
+export const NUDGES_BEFORE_OVERFLOW = 3;
+
+/**
+ * Decides whether this turn should remind the agent to fold.
+ * The threshold is the earlier of the two limits (Margin of Safety): the token limit catches
+ * degraded quality on large windows, the percentage catches overflow on small ones.
+ * The step shrinks when little room remains, so at least NUDGES_BEFORE_OVERFLOW reminders fit
+ * before the window ends; native compaction is blocked, so there is no net below them.
+ * `band` is the token level of the last reminder step reached; a reminder fires only when a
+ * higher band is reached while the agent keeps working (`continuing`).
+ */
 export function planNudge(
-  percent: number,
+  tokens: number,
+  window: number,
+  settings: Settings,
   lastBand: number,
   continuing: boolean,
 ): { nudge: boolean; band: number } {
-  if (!Number.isFinite(percent) || percent < NUDGE_BASE_PERCENT)
-    return { nudge: false, band: 0 };
-  const band =
-    NUDGE_BASE_PERCENT +
-    NUDGE_STEP_PERCENT * Math.floor((percent - NUDGE_BASE_PERCENT) / NUDGE_STEP_PERCENT);
+  if (!Number.isFinite(tokens) || !(window > 0)) return { nudge: false, band: 0 };
+  const threshold = Math.min(settings.nudgeAtTokens, (settings.nudgeAtPercent / 100) * window);
+  if (tokens < threshold) return { nudge: false, band: 0 };
+  // max(1, …) keeps the step positive when the threshold equals the window (100%).
+  const step = Math.max(1, Math.min(NUDGE_STEP_TOKENS, (window - threshold) / NUDGES_BEFORE_OVERFLOW));
+  const band = threshold + step * Math.floor((tokens - threshold) / step);
   if (continuing && band > lastBand) return { nudge: true, band };
   return { nudge: false, band: lastBand };
 }

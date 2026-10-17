@@ -29,7 +29,13 @@ Map and search results provide the IDs to read next.
 
 ## Context reminders
 
-When Pi estimates that context is at least **75% full**, the extension reminds the agent during tool work to fold completed work while keeping the current task, open questions, errors, and useful evidence. It reminds again as usage rises.
+When Pi estimates that context holds at least **150k tokens or 75% of the model's window** (whichever comes first), the extension reminds the agent during tool work to fold completed work while keeping the current task, open questions, errors, and useful evidence. It reminds again every 15k tokens as usage rises (closer together when little room remains).
+
+Optional file `~/.pi/agent/infinite-context/settings.json` (inside Pi's configured agent directory) changes the limits; missing or invalid values use the defaults, and changes apply after restarting Pi:
+
+```json
+{ "nudgeAtTokens": 150000, "nudgeAtPercent": 75 }
+```
 
 The agent chooses what to fold and writes the summaries. Reminders do not fold anything themselves.
 

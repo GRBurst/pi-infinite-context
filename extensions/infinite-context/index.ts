@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  SessionEntry,
+import fs from "node:fs";
+import path from "node:path";
+import {
+  type ExtensionAPI,
+  type ExtensionContext,
+  type SessionEntry,
+  getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
@@ -24,6 +27,7 @@ import { planRootRanges } from "./plan-root-ranges.ts";
 import { serializeMessage } from "./serialize-message.ts";
 import { validateToolUnitOwnership } from "./tool-units.ts";
 import { planNudge } from "./nudge.ts";
+import { type Settings, parseSettings } from "./settings.ts";
 import { renderMap } from "./render-map.ts";
 import {
   DEFAULT_PAGE_LIMIT,
@@ -74,7 +78,22 @@ function previewText(text: string): string {
     : characters.join("");
 }
 
+/**
+ * Read this extension's settings next to pi's own agent config (getAgentDir() honors pi's
+ * agent-dir override). A missing or unreadable file is the same as an empty one; parseSettings
+ * decides what that means per field. Read once per load: changes apply after restart or /reload.
+ */
+function readSettings(): Settings {
+  const file = path.join(getAgentDir(), "infinite-context", "settings.json");
+  try {
+    return parseSettings(fs.readFileSync(file, "utf8"));
+  } catch {
+    return parseSettings("");
+  }
+}
+
 export default function infiniteContext(pi: ExtensionAPI) {
+  const settings = readSettings();
   let roots: Forest = [];
   let stateError: Error | undefined;
   let loaded = false;
@@ -174,7 +193,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
     const percent = (tokens / window) * 100;
     const message = event.message as { stopReason?: string };
     const continuing = message.stopReason === "toolUse" && event.toolResults.length > 0;
-    const planned = planNudge(percent, lastNudgedBand, continuing);
+    const planned = planNudge(tokens, window, settings, lastNudgedBand, continuing);
     lastNudgedBand = planned.band;
     if (!planned.nudge) return;
     pi.sendMessage(
