@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 import {
   type Tool as AiTool,
@@ -22,6 +25,11 @@ import {
   toolResultMessage,
   userMessage,
 } from "./pi-test-fixtures.ts";
+
+// The extension reads <agent dir>/infinite-context/settings.json when it is created. An empty
+// agent dir keeps the tests on the defaults whatever the developer has configured. node --test
+// runs each file in its own process, so this does not leak into other test files.
+process.env.PI_CODING_AGENT_DIR = mkdtempSync(path.join(tmpdir(), "infinite-context-test-"));
 
 type Handler = (event: Record<string, unknown>, ctx: ExtensionContext) => Promise<unknown>;
 type RegisteredTool = {
