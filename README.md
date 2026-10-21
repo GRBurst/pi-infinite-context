@@ -42,3 +42,14 @@ The session records the effective limits as a `custom` entry of type `infinite-c
 The agent chooses what to fold and writes the summaries. Reminders do not fold anything themselves.
 
 Pi's own compaction, including `/compact`, is blocked. If the agent does not fold enough, the context can still overflow.
+
+## Prefix caching
+
+Providers cache the start of a prompt and charge about 20× less for cached tokens. A fold changes the prompt from the folded messages onward, so the first request after a fold is mostly uncached. After that, the new prompt is cached again.
+
+Measured on the author's sessions: 89,000 requests, 92 sessions with 502 folds, mixed models.
+
+- **98% of input tokens came from the cache** for requests less than 2 minutes apart. Sessions with folds: 98.0%. Sessions without folds: 98.3%.
+- **Only the first request after a fold misses**: 50% cached instead of 98%. A fold happens about once per 56 requests.
+- **A fold shrinks the context** from 121k to 47k tokens (median). The cache miss pays for itself after about 3 to 6 requests for folds that free 15k tokens or more. Folds that free less than 15k often never pay off, so the reminders ask for 15k or more.
+- After 5 minutes idle, only 18% of input is cached.
