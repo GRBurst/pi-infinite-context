@@ -331,8 +331,8 @@ export default function infiniteContext(pi: ExtensionAPI) {
     promptSnippet: "Fold completed context into a searchable recursive archive before the context limit",
     promptGuidelines: [
       "Use context_fold proactively after completed exploration, debugging, implementation, or verification phases and after large tool results; native compaction is blocked.",
-      "Keep governing instructions, the active request, unresolved errors, open decisions, and evidence needed soon as roots. Fold only when the replacement is worthwhile.",
-      "Write a short context_fold summary containing durable state, decisions, open loops, paths/symbols, and gotchas; use an empty summary only for disposable noise.",
+      "Fold what the current task step no longer needs. Keep governing instructions, the active request, unresolved errors, open decisions, and evidence needed soon as roots.",
+      "Write each summary so work can continue without the originals. Keep verbatim: file paths, symbols, commands, error messages, decisions with their rationale, open loops. Drop: verbose logs, repeated reads, dead ends that teach nothing. Include the exact terms you would later pass to context_search. Use an empty summary only for disposable noise.",
       "Use context_map for root ids, context_search to locate archived text, and context_peek to read it. Reads never unfold context.",
       "Revise a root fold with context_fold({items:[{from:id, summary:newSummary}]}): the new wrapper preserves the previous fold and summary as history.",
     ],
