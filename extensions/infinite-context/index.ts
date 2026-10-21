@@ -212,7 +212,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
         customType: "infinite-context/nudge",
         content:
           `<context-maintenance>\nContext is ~${Math.round(percent)}% full. ` +
-          "Use context_map, then context_fold completed or superseded roots. " +
+          "Use context_map, then context_fold completed or superseded roots in one call that frees at least ~15k tokens. " +
           "Keep the active request, open loops, unresolved errors, and evidence needed soon. " +
           "Native compaction is blocked, so an actual overflow will remain visible.\n</context-maintenance>",
         display: true,
@@ -331,7 +331,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
     promptSnippet: "Fold completed context into a searchable recursive archive before the context limit",
     promptGuidelines: [
       "Use context_fold proactively after completed exploration, debugging, implementation, or verification phases and after large tool results; native compaction is blocked.",
-      "Fold what the current task step no longer needs. Keep governing instructions, the active request, unresolved errors, open decisions, and evidence needed soon as roots.",
+      "Fold what the current task step no longer needs. Keep governing instructions, the active request, unresolved errors, open decisions, and evidence needed soon as roots. Each context_fold call rewrites the cached prompt prefix, so fold in batches that free at least ~15k tokens.",
       "Write each summary so work can continue without the originals. Keep verbatim: file paths, symbols, commands, error messages, decisions with their rationale, open loops. Drop: verbose logs, repeated reads, dead ends that teach nothing. Include the exact terms you would later pass to context_search. Use an empty summary only for disposable noise.",
       "Use context_map for root ids, context_search to locate archived text, and context_peek to read it. Reads never unfold context.",
       "Revise a root fold with context_fold({items:[{from:id, summary:newSummary}]}): the new wrapper preserves the previous fold and summary as history.",
