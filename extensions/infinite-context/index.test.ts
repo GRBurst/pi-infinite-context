@@ -387,7 +387,7 @@ test("old snapshots and pre-compacted sessions are rejected rather than interpre
     tokensBefore: 1,
   }]);
   await compacted.emit("session_start");
-  assert.match(compacted.notifications[0], /already contains native compaction/);
+  assert.match(compacted.notifications[0], /contains native compaction/);
 });
 
 test("id errors name the id and the next step", async () => {

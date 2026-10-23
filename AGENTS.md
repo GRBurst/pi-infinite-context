@@ -17,6 +17,7 @@ Use simple, accurate English and keep both documents very concise.
 - `DESIGN.md`: archive vocabulary, data structure, fold algebra, and invariants.
 - `extensions/infinite-context/index.ts`: Pi integration and tool registration.
 - `extensions/infinite-context/forest.ts`: pure recursive archive state and transforms.
+- `extensions/infinite-context/assert-supported-branch.ts`: rejects branches cut off by a corrupted session file or containing native compaction.
 - `extensions/infinite-context/originals.ts`: branch entries joined with their live message from Pi's session projection.
 - `extensions/infinite-context/serialize-message.ts`: authoritative text projection of one message.
 - `extensions/infinite-context/preview-message.ts`: compact preview projection of one message for map lines.

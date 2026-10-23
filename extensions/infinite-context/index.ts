@@ -21,6 +21,7 @@ import {
 } from "./forest.ts";
 import { visibleTokens } from "./fold-projection.ts";
 import { unknownIdError } from "./id-errors.ts";
+import { assertSupportedBranch } from "./assert-supported-branch.ts";
 import { branchOriginals, projectedPositions } from "./originals.ts";
 import { ProjectionMismatchError, buildOverlay } from "./overlay.ts";
 import { planRootRanges } from "./plan-root-ranges.ts";
@@ -107,10 +108,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
     loaded = true;
     try {
       const entries = branch(ctx);
-      if (entries.some((entry) => entry.type === "compaction"))
-        throw new Error(
-          "This session already contains native compaction and is incompatible with infinite-context v2; start a new session.",
-        );
+      assertSupportedBranch(entries);
       const originals = branchOriginals(entries, ctx.sessionManager.buildSessionProjection());
       let saved: Extract<SessionEntry, { type: "custom" }> | undefined;
       for (const entry of entries)
@@ -145,10 +143,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
     if (!loaded) load(ctx);
     if (stateError) throw stateError;
     const entries = branch(ctx);
-    if (entries.some((entry) => entry.type === "compaction"))
-      throw new Error(
-        "Native compaction is incompatible with infinite-context v2; start a new session.",
-      );
+    assertSupportedBranch(entries);
     const projection = ctx.sessionManager.buildSessionProjection();
     const originals = branchOriginals(entries, projection);
     const derivedRoots = syncOriginals(roots, originals.map(({ id }) => id));

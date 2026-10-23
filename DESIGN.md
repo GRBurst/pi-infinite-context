@@ -48,3 +48,4 @@ Revising a summary means `fold(newId, newSummary, [oldFold])`, not changing `old
 4. A live assistant message containing tool calls and its live results are either all original roots or inside the same root fold. The last live assistant cannot be folded while any of its calls lack live results.
 5. In model context, a root fold's summary message replaces its live leaves at the first live leaf. A root without live leaves emits nothing.
 6. A batch wraps disjoint ranges atomically: all ranges validate before one complete snapshot is appended. Reads change nothing and never unfold.
+7. The current branch is complete: it starts at the session root and contains no native compaction. Otherwise the archive refuses to load instead of guessing.

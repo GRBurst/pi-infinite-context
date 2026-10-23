@@ -96,13 +96,20 @@ export function wrapRootRanges(
 /** Append new branch messages while proving every archived original still exists once and in order. */
 export function syncOriginals(roots: Forest, currentOriginalIds: readonly string[]): Forest {
   const archived = originalIds(roots);
-  if (new Set(archived).size !== archived.length)
-    throw new Error("Snapshot contains duplicate original references");
-  if (archived.length > currentOriginalIds.length)
-    throw new Error("Snapshot references messages outside the current branch");
+  const seen = new Set<string>();
+  for (const id of archived) {
+    if (seen.has(id)) throw new Error(`Snapshot lists message ${id} twice`);
+    seen.add(id);
+  }
+  // One positional walk names the first divergence, whether the branch is shorter or different.
   for (let i = 0; i < archived.length; ++i) {
     if (archived[i] !== currentOriginalIds[i])
-      throw new Error("Snapshot does not match the current branch");
+      throw new Error(
+        `Snapshot lists message ${archived[i]} at position ${i}, but the current branch has ` +
+          (i < currentOriginalIds.length
+            ? `${currentOriginalIds[i]} there`
+            : `only ${currentOriginalIds.length} messages`),
+      );
   }
   return [
     ...roots,

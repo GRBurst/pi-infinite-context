@@ -91,6 +91,14 @@ test("sync appends only a current-branch suffix and rejects branch mismatch", ()
     "m2",
   ]);
   assert.throws(() => syncOriginals(roots, ["m0", "other"]), /current branch/);
+  assert.throws(
+    () => syncOriginals(roots, ["m0"]),
+    /message m1 at position 1, but the current branch has only 1 messages/,
+  );
+  assert.throws(
+    () => syncOriginals([messageItem("m0"), messageItem("m0")], ["m0", "m0"]),
+    /lists message m0 twice/,
+  );
 });
 
 test("fast-check command sequences preserve archive invariants and round-trip", () => {
