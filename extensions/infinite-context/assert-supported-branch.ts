@@ -5,14 +5,15 @@ import type { SessionEntry } from "@earendil-works/pi-coding-agent";
  *
  * Pi builds the branch by walking `parentId` links from the leaf and stops at the
  * first parent it cannot find. A complete branch therefore starts at the session
- * root (`parentId: null`). Any other start means entries are missing from the
+ * root (a falsy `parentId`). Any other start means entries are missing from the
  * session file, typically because an append was interrupted (for example by a
  * full disk) and Pi skipped the torn line on load. Reporting that here keeps the
  * snapshot checks in `forest.ts` from blaming the snapshot for a corrupted file.
  */
 export function assertSupportedBranch(entries: readonly SessionEntry[]): void {
   const first = entries[0];
-  if (first && first.parentId !== null)
+  // Pi's walk treats any falsy parentId as a root, so only a truthy one marks a gap.
+  if (first?.parentId)
     throw new Error(
       `The session file is corrupted: entry ${first.id} points to parent ${first.parentId}, ` +
         `which is missing from the file (likely an interrupted write, e.g. a full disk). ` +
