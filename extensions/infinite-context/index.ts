@@ -215,7 +215,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
     const percent = (tokens / window) * 100;
     const message = event.message as { stopReason?: string };
     const continuing = message.stopReason === "toolUse" && event.toolResults.length > 0;
-    const planned = planNudge(tokens, window, settings, lastNudgedBand, continuing);
+    const planned = planNudge(tokens, window, settings, lastNudgedBand, continuing, ctx.model);
     lastNudgedBand = planned.band;
     if (!planned.nudge) return;
     pi.sendMessage(
@@ -227,7 +227,7 @@ export default function infiniteContext(pi: ExtensionAPI) {
           "Keep the active request, open loops, unresolved errors, and evidence needed soon. " +
           "Native compaction is blocked, so an actual overflow will remain visible.\n</context-maintenance>",
         display: true,
-        details: { band: planned.band, tokens, window, ...nudgeSchedule(window, settings) },
+        details: { band: planned.band, tokens, window, ...nudgeSchedule(window, settings, ctx.model) },
       },
       { deliverAs: "steer" },
     );
