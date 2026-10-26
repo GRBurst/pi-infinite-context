@@ -27,6 +27,7 @@ Use simple, accurate English and keep both documents very concise.
 - `extensions/infinite-context/plan-root-ranges.ts`: fold request resolution and tool-unit range expansion.
 - `extensions/infinite-context/id-errors.ts`: actionable errors for caller-supplied ids.
 - `extensions/infinite-context/overlay.ts`: request-copy context overlay.
+- `extensions/infinite-context/handoff.ts`: the notice that replaces a request whose saved folds cannot be applied.
 - `extensions/infinite-context/search.ts`: pure archive regex search.
 - `extensions/infinite-context/output.ts`: line windows, token formatting, and global output limits.
 - `extensions/infinite-context/nudge.ts`: proactive folding threshold and reminder-step policy.

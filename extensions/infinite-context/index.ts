@@ -24,6 +24,7 @@ import { unknownIdError } from "./id-errors.ts";
 import { assertSupportedBranch } from "./assert-supported-branch.ts";
 import { branchOriginals, projectedPositions } from "./originals.ts";
 import { ProjectionMismatchError, buildOverlay } from "./overlay.ts";
+import { handoffNotice, handoffRequest, snapshotHasFolds } from "./handoff.ts";
 import { planRootRanges } from "./plan-root-ranges.ts";
 import { serializeMessage } from "./serialize-message.ts";
 import { validateToolUnitOwnership } from "./tool-units.ts";
@@ -106,6 +107,9 @@ export default function infiniteContext(pi: ExtensionAPI) {
   let roots: Forest = [];
   let stateError: Error | undefined;
   let loaded = false;
+  // The branch's last snapshot holds a fold, even when loading it failed: the unfolded
+  // transcript must not replace it (handoff.ts).
+  let foldsSaved = false;
   // Branch state: one Pi process can switch sessions (/new, /resume, /tree), so load() sets
   // both for the branch it loads; nothing leaks from the previous branch's reminder arm.
   let settings: Settings = DEFAULT_SETTINGS;
@@ -117,14 +121,17 @@ export default function infiniteContext(pi: ExtensionAPI) {
   const load = (ctx: ExtensionContext) => {
     stateError = undefined;
     loaded = true;
+    foldsSaved = false;
     try {
       const entries = branch(ctx);
-      assertSupportedBranch(entries);
-      const originals = branchOriginals(entries, ctx.sessionManager.buildSessionProjection());
       let saved: Extract<SessionEntry, { type: "custom" }> | undefined;
       for (const entry of entries)
         if (entry.type === "custom" && entry.customType === INFINITE_CONTEXT_ENTRY)
           saved = entry;
+      // Before the branch checks, so a branch that fails them still counts its folds.
+      foldsSaved = snapshotHasFolds(saved?.data);
+      assertSupportedBranch(entries);
+      const originals = branchOriginals(entries, ctx.sessionManager.buildSessionProjection());
       roots = saved
         ? parseSnapshot(saved.data).roots
         : originals.map(({ id }) => messageItem(id));
@@ -179,20 +186,32 @@ export default function infiniteContext(pi: ExtensionAPI) {
   pi.on("session_tree", async (_event, ctx) => load(ctx));
 
   pi.on("context", async (event, ctx) => {
-    if (stateError) return;
-    const state = current(ctx);
+    // Folds that cannot be applied never fall back to the unfolded transcript: the request
+    // carries a handoff notice instead and the run stops. Without folds, the untouched
+    // request is what would have been sent anyway.
+    const foldsExist = () => foldsSaved || roots.some((root) => root.kind === "fold");
+    const handOff = (reason: string) => {
+      ctx.ui.notify(handoffNotice(reason), "error");
+      ctx.abort();
+      return { messages: handoffRequest(reason, Date.now()) };
+    };
+    if (stateError) return foldsExist() ? handOff(stateError.message) : undefined;
+    let state: ReturnType<typeof current>;
+    try {
+      state = current(ctx);
+    } catch (error) {
+      if (foldsExist()) return handOff((error as Error).message);
+      throw error;
+    }
     try {
       return {
         messages: buildOverlay(event.messages, state.positions, state.originals, state.roots),
       };
     } catch (error) {
       // Without a trustworthy position mapping, folding the request could drop a
-      // tool result and break the turn: leave the request untouched and say so.
+      // tool result and break the turn.
       if (!(error instanceof ProjectionMismatchError)) throw error;
-      ctx.ui.notify(
-        `infinite-context: folds are not applied to this request. ${error.message}`,
-        "error",
-      );
+      if (state.roots.some((root) => root.kind === "fold")) return handOff(error.message);
       return;
     }
   });
