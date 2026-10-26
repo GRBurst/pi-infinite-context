@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -16,6 +16,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import infiniteContext from "./index.ts";
 import type { Snapshot } from "./forest.ts";
+import type { Settings } from "./settings.ts";
 import {
   assistantMessage,
   bashMessage,
@@ -128,6 +129,31 @@ test("each branch records the effective settings once, again after switching to 
   h.setEntries(source);
   await h.emit("session_tree");
   assert.equal(settingsEntries(h).length, 1);
+});
+
+test("a token range assigns each branch one recorded limit that survives reloads", async () => {
+  const file = path.join(process.env.PI_CODING_AGENT_DIR!, "infinite-context", "settings.json");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ nudgeAtTokens: [100_000, 250_000] }));
+  const source = [entry("u1", "user", "one", 1)];
+  const h = harness(source); // reads the file when created
+  rmSync(file);
+  const recorded = () =>
+    h.entries().flatMap((e) =>
+      e.type === "custom" && e.customType === "infinite-context:settings" ? [e.data as Settings] : [],
+    );
+  await h.emit("session_start");
+  await h.emit("session_start", { reason: "reload" });
+  assert.equal(recorded().length, 1);
+  const [first] = recorded();
+  assert.deepEqual(first.nudgeAtTokensRange, [100_000, 250_000]);
+  assert.ok(first.nudgeAtTokens >= 100_000 && first.nudgeAtTokens <= 250_000);
+
+  // A branch without a record (e.g. a new session in the same process) gets its own draw.
+  h.setEntries(source);
+  await h.emit("session_tree");
+  assert.equal(recorded().length, 1);
+  assert.deepEqual(recorded()[0].nudgeAtTokensRange, [100_000, 250_000]);
 });
 
 test("registers the approved four-tool surface in sequential mode", () => {

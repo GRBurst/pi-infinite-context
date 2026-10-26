@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_SETTINGS, parseSettings, settingsChanged } from "./settings.ts";
+import { DEFAULT_SETTINGS, parseSettings, resolveSettings, settingsChanged } from "./settings.ts";
 
 test("an empty or unreadable file yields the defaults", () => {
   for (const input of ["", "not json", "null", "[]", "42", "{}"]) {
@@ -37,6 +37,49 @@ test("an invalid field falls back without disturbing the valid one", () => {
   }
 });
 
+test("nudgeAtTokens accepts a range of two increasing token counts", () => {
+  assert.deepEqual(parseSettings(JSON.stringify({ nudgeAtTokens: [100_000, 250_000] })), {
+    ...DEFAULT_SETTINGS,
+    nudgeAtTokens: [100_000, 250_000],
+  });
+  for (const bad of [[], [1], [5, 5], [6, 5], [0, 5], [1.5, 5], [1, 2, 3], ["1", 5]]) {
+    assert.deepEqual(
+      parseSettings(JSON.stringify({ nudgeAtTokens: bad })),
+      DEFAULT_SETTINGS,
+      JSON.stringify(bad),
+    );
+  }
+});
+
+test("a fixed limit resolves to itself, with no range recorded", () => {
+  assert.deepEqual(resolveSettings(DEFAULT_SETTINGS, undefined, () => 0.5), DEFAULT_SETTINGS);
+});
+
+test("a range draws one limit uniformly and the branch keeps it", () => {
+  const file = { nudgeAtTokens: [100, 103] as const, nudgeAtPercent: 75 };
+  const draw = (random: number) => resolveSettings(file, undefined, () => random).nudgeAtTokens;
+  assert.deepEqual([0, 0.25, 0.5, 0.999999].map(draw), [100, 101, 102, 103]);
+  const first = resolveSettings(file, undefined, () => 0.5);
+  assert.deepEqual(first, { nudgeAtTokens: 102, nudgeAtPercent: 75, nudgeAtTokensRange: [100, 103] });
+  // Reload or fork: the branch's record holds the arm, so no new draw.
+  assert.deepEqual(resolveSettings(file, first, () => 0), first);
+  assert.equal(settingsChanged(first, resolveSettings(file, first, () => 0)), false);
+});
+
+test("a changed range or an implausible record draws anew", () => {
+  const file = { nudgeAtTokens: [100, 103] as const, nudgeAtPercent: 75 };
+  for (const recorded of [
+    { nudgeAtTokens: 102, nudgeAtPercent: 75, nudgeAtTokensRange: [100, 200] },
+    { nudgeAtTokens: 102, nudgeAtPercent: 75 },
+    { nudgeAtTokens: 99, nudgeAtPercent: 75, nudgeAtTokensRange: [100, 103] },
+    "x",
+  ]) {
+    const resolved = resolveSettings(file, recorded, () => 0);
+    assert.equal(resolved.nudgeAtTokens, 100, JSON.stringify(recorded));
+    assert.equal(settingsChanged(recorded, resolved), true, JSON.stringify(recorded));
+  }
+});
+
 test("unknown keys are ignored", () => {
   assert.deepEqual(parseSettings(JSON.stringify({ whatever: true })), DEFAULT_SETTINGS);
 });
@@ -45,6 +88,10 @@ test("only a record that matches the current settings counts as unchanged", () =
   assert.equal(settingsChanged({ ...DEFAULT_SETTINGS }, DEFAULT_SETTINGS), false);
   assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, nudgeAtTokens: 1 }, DEFAULT_SETTINGS), true);
   assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, nudgeAtPercent: 1 }, DEFAULT_SETTINGS), true);
+  assert.equal(
+    settingsChanged({ ...DEFAULT_SETTINGS, nudgeAtTokensRange: [1, 2] }, DEFAULT_SETTINGS),
+    true,
+  );
   for (const recorded of [undefined, null, "x", 3, {}]) {
     assert.equal(settingsChanged(recorded, DEFAULT_SETTINGS), true, String(recorded));
   }

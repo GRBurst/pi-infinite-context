@@ -37,7 +37,9 @@ Optional file `~/.pi/agent/infinite-context/settings.json` (inside Pi's configur
 { "nudgeAtTokens": 150000, "nudgeAtPercent": 75 }
 ```
 
-The session records the effective limits as a `custom` entry of type `infinite-context:settings` whenever they change, and each reminder carries its token count, window, threshold and step in `details`.
+`nudgeAtTokens` can also be a range, `[100000, 300000]`, to measure how the limit affects cost: each session then draws one limit uniformly from the range and keeps it when resumed, reloaded or forked. A changed range draws anew.
+
+The session records the effective limits as a `custom` entry of type `infinite-context:settings` whenever they change (with `nudgeAtTokensRange` when the limit was drawn), and each reminder carries its token count, window, threshold and step in `details`.
 
 The agent chooses what to fold and writes the summaries. Reminders do not fold anything themselves.
 
