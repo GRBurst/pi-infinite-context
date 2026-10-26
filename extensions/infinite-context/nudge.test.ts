@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import fc from "fast-check";
-import { NUDGES_BEFORE_OVERFLOW, nudgeSchedule, planNudge } from "./nudge.ts";
+import { NUDGES_BEFORE_OVERFLOW, nudgeSchedule, planNudge, reminderText } from "./nudge.ts";
 import { DEFAULT_SETTINGS, type Settings } from "./settings.ts";
 
 const settings = (nudgeAtTokens: number, nudgeAtPercent: number): Settings => ({
@@ -207,4 +207,18 @@ test("property: with per-model rules, reminders never fire below the start and e
     ),
     { numRuns: 200 },
   );
+});
+
+test("the reminder states absolute tokens, the window share and the schedule it follows", () => {
+  assert.equal(
+    reminderText(152_400, MILLION, { threshold: 150_000, step: 20_000 }),
+    "Context is ~152k tokens (15% of the 1000k-token window). Reminders start at 150k tokens and repeat every 20k.",
+  );
+});
+
+test("a step below 1k tokens is stated exactly, not rounded to 0k", () => {
+  const text = reminderText(99_000, MILLION, { threshold: 98_000, step: 1 });
+  assert.match(text, /Reminders start at 98k tokens and repeat every 1 token\./);
+  assert.match(reminderText(99_000, MILLION, { threshold: 98_000, step: 420.4 }), /repeat every 420 tokens\./);
+  assert.match(reminderText(99_000, MILLION, { threshold: 98_000, step: 8_000 / 3 }), /repeat every 3k\./);
 });

@@ -58,3 +58,26 @@ export function planNudge(
   if (continuing && band > lastBand) return { nudge: true, band };
   return { nudge: false, band: lastBand };
 }
+
+const k = (tokens: number) => `${Math.round(tokens / 1000)}k`;
+// Below 1k a rounded "0k" would be misleading (nudgeAtPercent 100 gives a step of 1).
+const exact = (tokens: number) => {
+  const n = Math.max(1, Math.round(tokens));
+  return tokens < 1000 ? `${n} token${n === 1 ? "" : "s"}` : k(tokens);
+};
+
+/**
+ * The reminder's opening sentences: absolute tokens next to the window share, and the schedule
+ * they follow. With per-model rules the share alone does not tell the agent how close it is.
+ */
+export function reminderText(
+  tokens: number,
+  window: number,
+  schedule: { threshold: number; step: number },
+): string {
+  const percent = Math.round((tokens / window) * 100);
+  return (
+    `Context is ~${k(tokens)} tokens (${percent}% of the ${k(window)}-token window). ` +
+    `Reminders start at ${k(schedule.threshold)} tokens and repeat every ${exact(schedule.step)}.`
+  );
+}

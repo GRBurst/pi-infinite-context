@@ -53,7 +53,7 @@ function harness(initial: SessionEntry[]) {
   const handlers = new Map<string, Handler[]>();
   const tools = new Map<string, RegisteredTool>();
   const notifications: string[] = [];
-  const sent: Array<{ details?: unknown }> = [];
+  const sent: Array<{ content?: unknown; details?: unknown }> = [];
   let appended = 0;
   const pi = {
     on(name: string, handler: Handler) {
@@ -74,7 +74,7 @@ function harness(initial: SessionEntry[]) {
         data,
       });
     },
-    sendMessage(message: { details?: unknown }) {
+    sendMessage(message: { content?: unknown; details?: unknown }) {
       sent.push(message);
     },
   } as unknown as ExtensionAPI;
@@ -180,6 +180,7 @@ test("a per-model reminder rule follows the session's model and is recorded with
   await h.emit("turn_end", turn);
   assert.equal(h.sent.length, 1);
   assert.deepEqual(h.sent[0].details, { band: 10_000, tokens: 10_000, window: 100_000, threshold: 5_000, step: 1_000 });
+  assert.match(String(h.sent[0].content), /Context is ~10k tokens \(10% of the 100k-token window\)\. Reminders start at 5k tokens and repeat every 1k\./);
 });
 
 test("registers the approved four-tool surface in sequential mode", () => {
