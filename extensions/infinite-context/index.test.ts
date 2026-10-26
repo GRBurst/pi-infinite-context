@@ -128,6 +128,8 @@ test("each branch records the effective settings once, again after switching to 
   assert.deepEqual(recorded.type === "custom" && recorded.data, {
     nudgeAtTokens: 150_000,
     nudgeAtPercent: 75,
+    cacheTtlMinutes: 5,
+    foldHint: "fixed",
   });
 
   h.setEntries(source);
@@ -469,4 +471,50 @@ test("id errors name the id and the next step", async () => {
     /Pattern 1 is not a valid JavaScript regular expression/,
   );
   assert.ok(foldId);
+});
+
+test("foldHint cache-aware (opt-in): the system prompt gets the fold_timing section, reminders get the hint", async () => {
+  // The harness reports 10k of a 100k window; a default start of 5k makes the reminder fire.
+  const reminders = { default: { startTokens: 5_000, everyTokens: 1_000 }, overrides: {} };
+  const file = path.join(process.env.PI_CODING_AGENT_DIR!, "infinite-context", "settings.json");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ foldHint: "cache-aware", reminders }));
+  const r = harness([entry("u1", "user", "one", 1)]);
+  rmSync(file);
+  await r.emit("session_start");
+  const sections: Record<string, string> = { other: "kept" };
+  await r.emit("before_agent_start", { systemPromptOptions: { sections } });
+  assert.deepEqual(Object.keys(sections), ["other", "fold_timing"]);
+  assert.match(sections.fold_timing, /^Fold timing: a fold re-writes the prompt cache/);
+  const turn = { message: { stopReason: "toolUse" }, toolResults: [{}] };
+  Object.assign(r.ctx, {
+    model: { provider: "p", id: "m", cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 } },
+  });
+  await r.emit("turn_end", turn);
+  assert.match(String(r.sent.at(-1)?.content), /Fold hint: the prompt cache is cold, so folding is free now\./);
+  await r.emit("after_provider_response", { status: 200 });
+  await r.emit("turn_end", { ...turn });
+  // Same band: no second reminder until the next step. Fold below the start to re-arm.
+  Object.assign(r.ctx, { getContextUsage: () => ({ contextWindow: 100_000, tokens: 1_000 }) });
+  await r.emit("turn_end", turn);
+  Object.assign(r.ctx, { getContextUsage: () => ({ contextWindow: 100_000, tokens: 10_000 }) });
+  await r.emit("turn_end", turn);
+  assert.equal(r.sent.length, 2);
+  // 7.5k removed, 2.5k kept, (3.75 - 0.3) / 0.3 = 11.5: 11.5 / 3 ≈ 4 turns.
+  assert.match(String(r.sent.at(-1)?.content), /cache is warm; folding the oldest 75% pays off after ≈ 4 more turns \(in general ≈ 11\.5 × K\/R/);
+});
+
+test("foldHint fixed, the default: no fold_timing section and no hint", async () => {
+  const file = path.join(process.env.PI_CODING_AGENT_DIR!, "infinite-context", "settings.json");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ reminders: { default: { startTokens: 5_000 } } }));
+  const h = harness([entry("u1", "user", "one", 1)]);
+  rmSync(file);
+  await h.emit("session_start");
+  const sections: Record<string, string> = { other: "kept", fold_timing: "theirs" };
+  await h.emit("before_agent_start", { systemPromptOptions: { sections } });
+  assert.deepEqual(sections, { other: "kept", fold_timing: "theirs" });
+  await h.emit("turn_end", { message: { stopReason: "toolUse" }, toolResults: [{}] });
+  assert.equal(h.sent.length, 1);
+  assert.doesNotMatch(String(h.sent[0].content), /Fold hint/);
 });

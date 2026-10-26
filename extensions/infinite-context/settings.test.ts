@@ -4,6 +4,7 @@ import {
   DEFAULT_SETTINGS,
   modelEntries,
   parseSettings,
+  resolvePrice,
   resolveSettings,
   settingsChanged,
 } from "./settings.ts";
@@ -62,18 +63,18 @@ test("a fixed limit resolves to itself, with no range recorded", () => {
 });
 
 test("a range draws one limit uniformly and the branch keeps it", () => {
-  const file = { nudgeAtTokens: [100, 103] as const, nudgeAtPercent: 75 };
+  const file = { ...DEFAULT_SETTINGS, nudgeAtTokens: [100, 103] as const };
   const draw = (random: number) => resolveSettings(file, undefined, () => random).nudgeAtTokens;
   assert.deepEqual([0, 0.25, 0.5, 0.999999].map(draw), [100, 101, 102, 103]);
   const first = resolveSettings(file, undefined, () => 0.5);
-  assert.deepEqual(first, { nudgeAtTokens: 102, nudgeAtPercent: 75, nudgeAtTokensRange: [100, 103] });
+  assert.deepEqual(first, { ...DEFAULT_SETTINGS, nudgeAtTokens: 102, nudgeAtTokensRange: [100, 103] });
   // Reload or fork: the branch's record holds the arm, so no new draw.
   assert.deepEqual(resolveSettings(file, first, () => 0), first);
   assert.equal(settingsChanged(first, resolveSettings(file, first, () => 0)), false);
 });
 
 test("a changed range or an implausible record draws anew", () => {
-  const file = { nudgeAtTokens: [100, 103] as const, nudgeAtPercent: 75 };
+  const file = { ...DEFAULT_SETTINGS, nudgeAtTokens: [100, 103] as const };
   for (const recorded of [
     { nudgeAtTokens: 102, nudgeAtPercent: 75, nudgeAtTokensRange: [100, 200] },
     { nudgeAtTokens: 102, nudgeAtPercent: 75 },
@@ -162,4 +163,68 @@ test("modelEntries: exact provider/modelId first, then the provider, never inher
   assert.deepEqual(modelEntries(table, { provider: "openai", id: "opus" }), []);
   assert.deepEqual(modelEntries(table, undefined), []);
   assert.deepEqual(modelEntries(table, { provider: "toString" }), []);
+});
+
+const opus = { provider: "anthropic", id: "claude-opus" };
+const STEEP = { cacheWrite: 5, cacheRead: 0.2 };
+const MILD = { cacheWrite: 2.5, cacheRead: 0.2 };
+
+test("fold-hint settings: defaults, and each field read on its own", () => {
+  assert.equal(DEFAULT_SETTINGS.cacheTtlMinutes, 5);
+  assert.equal(DEFAULT_SETTINGS.foldHint, "fixed");
+  assert.equal(DEFAULT_SETTINGS.prices, undefined);
+  assert.deepEqual(parseSettings(JSON.stringify({ cacheTtlMinutes: 60, foldHint: "cache-aware" })), {
+    ...DEFAULT_SETTINGS,
+    cacheTtlMinutes: 60,
+    foldHint: "cache-aware",
+  });
+  for (const bad of [0, -1, "5", null])
+    assert.equal(parseSettings(JSON.stringify({ cacheTtlMinutes: bad })).cacheTtlMinutes, 5, String(bad));
+  for (const bad of ["always", 1, null])
+    assert.equal(parseSettings(JSON.stringify({ foldHint: bad })).foldHint, "fixed", String(bad));
+});
+
+test("prices keep only usable entries", () => {
+  const parsed = parseSettings(
+    JSON.stringify({
+      prices: {
+        "anthropic/claude-opus": STEEP,
+        anthropic: MILD,
+        a: { cacheWrite: 5 },
+        b: { cacheWrite: 5, cacheRead: 0 },
+        c: { cacheWrite: 1, cacheRead: 2 },
+        d: null,
+      },
+    }),
+  );
+  assert.deepEqual(parsed.prices, { "anthropic/claude-opus": STEEP, anthropic: MILD });
+  for (const prices of [[], "x", {}, { a: { cacheWrite: 1, cacheRead: 2 } }])
+    assert.deepEqual(parseSettings(JSON.stringify({ prices })), DEFAULT_SETTINGS, JSON.stringify(prices));
+});
+
+test("resolvePrice: exact provider/modelId, then provider, then the model's registry cost", () => {
+  const settings = { ...DEFAULT_SETTINGS, prices: { "anthropic/claude-opus": STEEP, anthropic: MILD } };
+  assert.deepEqual(resolvePrice(settings, opus), STEEP);
+  assert.deepEqual(resolvePrice(settings, { provider: "anthropic", id: "claude-haiku" }), MILD);
+  const cost = { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 };
+  assert.deepEqual(resolvePrice(settings, { provider: "openai", id: "gpt", cost }), { cacheWrite: 3.75, cacheRead: 0.3 });
+  assert.deepEqual(resolvePrice(settings, { ...opus, cost }), STEEP);
+  // No write surcharge reported: rewriting the cache costs the input price.
+  const noSurcharge = { input: 1.25, output: 10, cacheRead: 0.125, cacheWrite: 0 };
+  assert.deepEqual(resolvePrice(DEFAULT_SETTINGS, { provider: "openai", id: "gpt", cost: noSurcharge }), {
+    cacheWrite: 1.25,
+    cacheRead: 0.125,
+  });
+  // No price at all, or no cache-read price: no hint.
+  assert.equal(resolvePrice(DEFAULT_SETTINGS, opus), undefined);
+  assert.equal(resolvePrice(DEFAULT_SETTINGS, { ...opus, cost: { input: 1, cacheRead: 0, cacheWrite: 0 } }), undefined);
+});
+
+test("the fold-hint settings are part of the recorded settings", () => {
+  assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, foldHint: "cache-aware" }, DEFAULT_SETTINGS), true);
+  assert.equal(settingsChanged({ ...DEFAULT_SETTINGS, cacheTtlMinutes: 60 }, DEFAULT_SETTINGS), true);
+  const priced = resolveSettings(parseSettings(JSON.stringify({ prices: { anthropic: MILD } })), undefined, () => 0);
+  assert.deepEqual(priced.prices, { anthropic: MILD });
+  assert.equal(settingsChanged(JSON.parse(JSON.stringify(priced)), priced), false);
+  assert.equal(settingsChanged(DEFAULT_SETTINGS, priced), true);
 });

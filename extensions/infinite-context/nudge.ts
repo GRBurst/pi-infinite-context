@@ -69,15 +69,18 @@ const exact = (tokens: number) => {
 /**
  * The reminder's opening sentences: absolute tokens next to the window share, and the schedule
  * they follow. With per-model rules the share alone does not tell the agent how close it is.
+ * The fold hint (fold-hint.ts) follows when there is one.
  */
 export function reminderText(
   tokens: number,
   window: number,
   schedule: { threshold: number; step: number },
+  hint?: string,
 ): string {
   const percent = Math.round((tokens / window) * 100);
   return (
     `Context is ~${k(tokens)} tokens (${percent}% of the ${k(window)}-token window). ` +
-    `Reminders start at ${k(schedule.threshold)} tokens and repeat every ${exact(schedule.step)}.`
+    `Reminders start at ${k(schedule.threshold)} tokens and repeat every ${exact(schedule.step)}.` +
+    (hint ? ` ${hint}` : "")
   );
 }

@@ -34,8 +34,29 @@ export interface Reminders {
   readonly overrides: Readonly<Record<string, ReminderRule>>;
 }
 
+/** Prompt-cache prices of a model per token, in any one unit (only their ratio matters). */
+export interface CachePrice {
+  readonly cacheWrite: number;
+  readonly cacheRead: number;
+}
+
+/**
+ * fixed (default): reminders carry no cost hint; cache-aware (opt-in): they do, and the system
+ * prompt gets the fold_timing section (fold-hint.ts). Opt-in, because it changes the prompt.
+ */
+export type FoldHintMode = "fixed" | "cache-aware";
+
+/** Settings that tune the cost-aware fold hint; the same in the file and on a branch. */
+interface FoldHintSettings {
+  /** Prices per exact "provider/modelId" or provider; present only when the file sets one. */
+  readonly prices?: Readonly<Record<string, CachePrice>>;
+  /** How long a provider keeps the prompt cache after a request. */
+  readonly cacheTtlMinutes: number;
+  readonly foldHint: FoldHintMode;
+}
+
 /** The settings file: a fixed token limit, or a range to draw one per branch from. */
-export interface FileSettings {
+export interface FileSettings extends FoldHintSettings {
   readonly nudgeAtTokens: number | TokenRange;
   readonly nudgeAtPercent: number;
   /** Present only when the file sets at least one valid rule field. */
@@ -43,7 +64,7 @@ export interface FileSettings {
 }
 
 /** The settings one branch runs under; recorded as the SETTINGS_ENTRY data. */
-export interface Settings {
+export interface Settings extends FoldHintSettings {
   /** Remind once the context holds at least this many tokens. */
   readonly nudgeAtTokens: number;
   /** Remind once the context fills at least this percentage of the model's window. */
@@ -65,6 +86,8 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   nudgeAtTokens: 150_000,
   nudgeAtPercent: 75,
+  cacheTtlMinutes: 5,
+  foldHint: "fixed",
 };
 
 /** The provider and id of a model, as Pi names them. */
@@ -132,6 +155,42 @@ function parseReminders(value: unknown): Reminders | undefined {
 
 const withReminders = (reminders: Reminders | undefined) => (reminders ? { reminders } : {});
 
+/** A usable price: finite, reading is not free, and writing costs at least as much. */
+function cachePrice(value: unknown): CachePrice | undefined {
+  if (!isRecord(value)) return undefined;
+  const { cacheWrite, cacheRead } = value;
+  return typeof cacheWrite === "number" && typeof cacheRead === "number" &&
+    Number.isFinite(cacheWrite) && cacheRead > 0 && cacheWrite >= cacheRead
+    ? { cacheWrite, cacheRead }
+    : undefined;
+}
+
+/** The `prices` table, keeping only usable entries; nothing when none is left. */
+function withPrices(value: unknown): { prices?: Record<string, CachePrice> } {
+  if (!isRecord(value)) return {};
+  const prices: Record<string, CachePrice> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const price = cachePrice(raw);
+    if (price) prices[key] = price;
+  }
+  return Object.keys(prices).length > 0 ? { prices } : {};
+}
+
+/**
+ * The prompt-cache price of `model`: the exact "provider/modelId" entry of `prices`, then the
+ * provider's, then the model's own cost from Pi's registry. There, a provider without a write
+ * surcharge reports cacheWrite 0, and rewriting the cache costs the input price.
+ */
+export function resolvePrice(
+  settings: Settings,
+  model: (ModelRef & { cost?: { input: number; cacheRead: number; cacheWrite: number } }) | undefined,
+): CachePrice | undefined {
+  const configured = modelEntries(settings.prices ?? {}, model)[0];
+  if (configured) return configured;
+  const cost = model?.cost;
+  return cost ? cachePrice({ cacheWrite: Math.max(cost.cacheWrite, cost.input), cacheRead: cost.cacheRead }) : undefined;
+}
+
 /** Parses the settings file's contents; unparseable text is treated as an empty file. */
 export function parseSettings(json: string): FileSettings {
   let value: Record<string, unknown> | undefined;
@@ -147,6 +206,15 @@ export function parseSettings(json: string): FileSettings {
       positiveInt(value?.nudgeAtTokens, DEFAULT_SETTINGS.nudgeAtTokens),
     nudgeAtPercent: percent(value?.nudgeAtPercent, DEFAULT_SETTINGS.nudgeAtPercent),
     ...withReminders(parseReminders(value?.reminders)),
+    ...withPrices(value?.prices),
+    cacheTtlMinutes:
+      typeof value?.cacheTtlMinutes === "number" && Number.isFinite(value.cacheTtlMinutes) && value.cacheTtlMinutes > 0
+        ? value.cacheTtlMinutes
+        : DEFAULT_SETTINGS.cacheTtlMinutes,
+    foldHint:
+      value?.foldHint === "fixed" || value?.foldHint === "cache-aware"
+        ? value.foldHint
+        : DEFAULT_SETTINGS.foldHint,
   };
 }
 
@@ -165,9 +233,8 @@ export function resolveSettings(
   recorded: unknown,
   random: () => number,
 ): Settings {
-  const { nudgeAtTokens, nudgeAtPercent } = file;
-  const rules = withReminders(file.reminders);
-  if (typeof nudgeAtTokens === "number") return { nudgeAtTokens, nudgeAtPercent, ...rules };
+  const { nudgeAtTokens, ...rest } = file;
+  if (typeof nudgeAtTokens === "number") return { ...rest, nudgeAtTokens };
   const [min, max] = nudgeAtTokens;
   const data = (typeof recorded === "object" && recorded !== null ? recorded : {}) as Record<
     string,
@@ -179,7 +246,7 @@ export function resolveSettings(
     typeof kept === "number" && Number.isInteger(kept) && kept >= min && kept <= max
       ? kept
       : min + Math.floor(random() * (max - min + 1));
-  return { nudgeAtTokens: drawn, nudgeAtPercent, nudgeAtTokensRange: nudgeAtTokens, ...rules };
+  return { ...rest, nudgeAtTokens: drawn, nudgeAtTokensRange: nudgeAtTokens };
 }
 
 /**
@@ -195,6 +262,9 @@ export function settingsChanged(recorded: unknown, current: Settings): boolean {
     (current.nudgeAtTokensRange === undefined
       ? data.nudgeAtTokensRange !== undefined
       : !sameRange(data.nudgeAtTokensRange, current.nudgeAtTokensRange)) ||
-    !isDeepStrictEqual(data.reminders, current.reminders)
+    !isDeepStrictEqual(data.reminders, current.reminders) ||
+    !isDeepStrictEqual(data.prices, current.prices) ||
+    data.cacheTtlMinutes !== current.cacheTtlMinutes ||
+    data.foldHint !== current.foldHint
   );
 }

@@ -5,6 +5,7 @@ import { NUDGES_BEFORE_OVERFLOW, nudgeSchedule, planNudge, reminderText } from "
 import { DEFAULT_SETTINGS, type Settings } from "./settings.ts";
 
 const settings = (nudgeAtTokens: number, nudgeAtPercent: number): Settings => ({
+  ...DEFAULT_SETTINGS,
   nudgeAtTokens,
   nudgeAtPercent,
 });
